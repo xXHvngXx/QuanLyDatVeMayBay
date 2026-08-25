@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\packages\EntityFramework.6.5.2\build\EntityFramework.props" Condition="Exists('..\packages\EntityFramework.6.5.2\build\EntityFramework.props')" />
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{6BBC1269-E841-4062-A580-FFE9EB933F17}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>QL_DatVeMayBay.DAL</RootNamespace>
+    <AssemblyName>QL_DatVeMayBay.DAL</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="EntityFramework, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+      <HintPath>..\packages\EntityFramework.6.5.2\lib\net45\EntityFramework.dll</HintPath>
+    </Reference>
+    <Reference Include="EntityFramework.SqlServer, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+      <HintPath>..\packages\EntityFramework.6.5.2\lib\net45\EntityFramework.SqlServer.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Security" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="ChiTietChuyenBay.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="ChuyenBay.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="DanhGiaChuyenBay.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="fn_TinhTienHoanTraHuyVe_Result.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="GheNgoi.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="HangGhe.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="HangHangKhong.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="HoaDon.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="KhachHang.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="KhuyenMai.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="MayBay.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="NhanVien.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="PhieuDatCho.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="QL_DatVeMayBayModel.Context.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>QL_DatVeMayBayModel.Context.tt</DependentUpon>
+    </Compile>
+    <Compile Include="QL_DatVeMayBayModel.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="QL_DatVeMayBayModel.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>QL_DatVeMayBayModel.edmx</DependentUpon>
+    </Compile>
+    <Compile Include="SanBay.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="sp_DangKyKhachHang_Result.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="sp_DangNhapKhachHang_Result.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="sp_DoiVeMayBay_Result.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="sp_ThanhToanDonVe_Result.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="sp_TimKiemChuyenBay_Result.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="sp_XuLyHuyVeVaHoanTien_Result.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TuyenBay.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="VaiTro.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="VeMayBay.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="vw_BaoCaoDoanhThuTheoHang.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="vw_ChiTietVeVaHanhKhach.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="vw_DanhSachChuyenBayChiTiet.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="vw_LichSuDatVeKhachHang.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="vw_TopTuyenBayDatNhieuNhat.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="YeuCauHuyDoiVe.cs">
+      <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\QL_DatVeMayBay.DTO\QL_DatVeMayBay.DTO.csproj">
+      <Project>{0301635a-b2d2-4e38-9437-a9194a943a0f}</Project>
+      <Name>QL_DatVeMayBay.DTO</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <EntityDeploy Include="QL_DatVeMayBayModel.edmx">
+      <Generator>EntityModelCodeGenerator</Generator>
+      <LastGenOutput>QL_DatVeMayBayModel.Designer.cs</LastGenOutput>
+    </EntityDeploy>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.Config" />
+    <None Include="packages.config" />
+    <None Include="QL_DatVeMayBayModel.edmx.diagram">
+      <DependentUpon>QL_DatVeMayBayModel.edmx</DependentUpon>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="QL_DatVeMayBayModel.Context.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <DependentUpon>QL_DatVeMayBayModel.edmx</DependentUpon>
+      <LastGenOutput>QL_DatVeMayBayModel.Context.cs</LastGenOutput>
+    </Content>
+    <Content Include="QL_DatVeMayBayModel.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <DependentUpon>QL_DatVeMayBayModel.edmx</DependentUpon>
+      <LastGenOutput>QL_DatVeMayBayModel.cs</LastGenOutput>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\EntityFramework.6.5.2\build\EntityFramework.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EntityFramework.6.5.2\build\EntityFramework.props'))" />
+    <Error Condition="!Exists('..\packages\EntityFramework.6.5.2\build\EntityFramework.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EntityFramework.6.5.2\build\EntityFramework.targets'))" />
+  </Target>
+  <Import Project="..\packages\EntityFramework.6.5.2\build\EntityFramework.targets" Condition="Exists('..\packages\EntityFramework.6.5.2\build\EntityFramework.targets')" />
+</Project>
