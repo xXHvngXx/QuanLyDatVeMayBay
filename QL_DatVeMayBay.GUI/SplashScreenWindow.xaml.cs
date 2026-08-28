@@ -34,7 +34,7 @@ namespace QL_DatVeMayBay.GUI
 
         private async void StartSmoothLoading()
         {
-            int totalDurationMs = 3200; // 3.2 giây: Tốc độ vừa đủ chậm rãi để quan sát mượt mà
+            int totalDurationMs = 3200; // 3.2 giây
 
             DoubleAnimation pbAnimation = new DoubleAnimation
             {

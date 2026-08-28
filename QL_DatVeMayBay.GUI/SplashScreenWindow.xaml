@@ -5,7 +5,6 @@
         Title="Loading System..." Height="420" Width="600"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent">
-    <!-- Nền màu #2BAAE1 khớp hoàn toàn với background của GIF -->
     <Border Background="#2BAAE1" CornerRadius="20">
         <Border.Effect>
             <DropShadowEffect BlurRadius="30" Color="#000000" Opacity="0.35" Direction="270"/>
@@ -20,13 +19,11 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- Title Header (To & Nổi bật) -->
             <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,5,0,0">
                 <TextBlock Text="✈ AIRLINE BOOKING SYSTEM" FontSize="26" FontWeight="Black" Foreground="#FFFFFF" HorizontalAlignment="Center"/>
                 <TextBlock Text="HỆ THỐNG QUẢN LÝ &amp; ĐẶT VÉ MÁY BAY" FontSize="12" FontWeight="Bold" Foreground="#E0F2FE" HorizontalAlignment="Center" Margin="0,4,0,0"/>
             </StackPanel>
 
-            <!-- GIF Máy Bay (Thu nhỏ vừa vặn, hòa nhập hoàn toàn vào nền) -->
             <Grid Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,10">
                 <Image gif:ImageBehavior.AnimatedSource="/Flight.gif" 
                        Height="250" Width="350"
@@ -41,7 +38,7 @@
                 <TextBlock x:Name="lblPercent" Text="0%" Foreground="#FFFFFF" FontSize="14" FontWeight="Black" HorizontalAlignment="Right"/>
             </Grid>
 
-            <!-- Progress Bar Mịn Mượt -->
+            <!-- Progress Bar -->
             <Border Grid.Row="3" Background="#1D89BD" CornerRadius="6" Height="8" Padding="1.5">
                 <ProgressBar x:Name="pbLoading" Minimum="0" Maximum="100" 
                              Foreground="#FFFFFF" Background="Transparent" BorderThickness="0">

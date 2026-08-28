@@ -21,38 +21,58 @@ namespace QL_DatVeMayBay.GUI
     /// </summary>
     public partial class MainWindow : Window
     {
-        private ChuyenBayBLL chuyenBayBLL = new ChuyenBayBLL();
+        private readonly ChuyenBayBLL _chuyenBayBLL;
 
         public MainWindow()
         {
             InitializeComponent();
+            _chuyenBayBLL = new ChuyenBayBLL();
+
+            LoadDanhSachChuyenBay();
         }
 
-        private void Window_Loaded(object sender, RoutedEventArgs e)
+        private void LoadDanhSachChuyenBay()
         {
-            LoadData();
-        }
-
-        private void LoadData()
-        {
-            dgvChuyenBay.ItemsSource = chuyenBayBLL.LayDanhSachChuyenBay();
+            try
+            {
+                dgvChuyenBay.ItemsSource = _chuyenBayBLL.LayDanhSachChuyenBay();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi tải dữ liệu: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void btnTimKiem_Click(object sender, RoutedEventArgs e)
         {
-            string maDi = txtMaSBDi.Text.Trim();
-            string maDen = txtMaSBDen.Text.Trim();
-            DateTime? ngayBay = dpNgayBay.SelectedDate;
+            try
+            {
+                string maDi = string.IsNullOrWhiteSpace(txtMaSBDi.Text) ? null : txtMaSBDi.Text.Trim();
+                string maDen = string.IsNullOrWhiteSpace(txtMaSBDen.Text) ? null : txtMaSBDen.Text.Trim();
+                DateTime? ngayBay = dpNgayBay.SelectedDate;
 
-            dgvChuyenBay.ItemsSource = chuyenBayBLL.TimKiemChuyenBay(maDi, maDen, ngayBay);
+                var ketQua = _chuyenBayBLL.TimKiemChuyenBay(maDi, maDen, ngayBay);
+
+                dgvChuyenBay.ItemsSource = ketQua;
+
+                if (ketQua == null || ketQua.Count == 0)
+                {
+                    MessageBox.Show("Không tìm thấy chuyến bay phù hợp!", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi tìm kiếm: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void btnLamMoi_Click(object sender, RoutedEventArgs e)
         {
-            txtMaSBDi.Clear();
-            txtMaSBDen.Clear();
+            txtMaSBDi.Text = string.Empty;
+            txtMaSBDen.Text = string.Empty;
             dpNgayBay.SelectedDate = null;
-            LoadData();
+
+            LoadDanhSachChuyenBay();
         }
     }
 }

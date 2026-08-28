@@ -53,6 +53,7 @@
   <ItemGroup>
     <Compile Include="ChuyenBayBLL.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SanBayBLL.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\QL_DatVeMayBay.DAL\QL_DatVeMayBay.DAL.csproj">

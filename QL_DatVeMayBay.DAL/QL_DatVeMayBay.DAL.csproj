@@ -59,6 +59,7 @@
     <Compile Include="ChuyenBay.cs">
       <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
     </Compile>
+    <Compile Include="ChuyenBayDAL.cs" />
     <Compile Include="DanhGiaChuyenBay.cs">
       <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
     </Compile>
@@ -80,6 +81,7 @@
     <Compile Include="KhachHang.cs">
       <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
     </Compile>
+    <Compile Include="KhachHangDAL.cs" />
     <Compile Include="KhuyenMai.cs">
       <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
     </Compile>
@@ -111,6 +113,7 @@
     <Compile Include="SanBay.cs">
       <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
     </Compile>
+    <Compile Include="SanBayDAL.cs" />
     <Compile Include="sp_DangKyKhachHang_Result.cs">
       <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
     </Compile>
@@ -138,6 +141,7 @@
     <Compile Include="VeMayBay.cs">
       <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
     </Compile>
+    <Compile Include="VeMayBayDAL.cs" />
     <Compile Include="vw_BaoCaoDoanhThuTheoHang.cs">
       <DependentUpon>QL_DatVeMayBayModel.tt</DependentUpon>
     </Compile>
