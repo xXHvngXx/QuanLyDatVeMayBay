@@ -1,0 +1,251 @@
+@using System.Text.RegularExpressions
+@{
+    var leg = ViewData["Leg"] as Dictionary<string, object> ?? new();
+    string inputName = ViewData["InputName"]?.ToString() ?? "gheDiIds";
+    string callbackFn = ViewData["OnChangeFn"]?.ToString() ?? "onSeatPick";
+    int maxSeats = Convert.ToInt32(ViewData["MaxSeats"] ?? 1);
+    string maCB = leg["MaChuyenBay"].ToString()!;
+    var seats = leg["Seats"] as List<Dictionary<string, object>> ?? new();
+
+    int ParseRow(string soGhe)
+    {
+        var m = Regex.Match(soGhe, @"^\d+");
+        return m.Success ? int.Parse(m.Value) : 99;
+    }
+    string ParseCol(string soGhe)
+    {
+        var m = Regex.Match(soGhe, @"[A-Za-z]+$");
+        return m.Success ? m.Value.ToUpperInvariant() : "";
+    }
+
+    var rowGroups = seats
+        .GroupBy(s => ParseRow(s["SoGhe"].ToString()!))
+        .OrderBy(g => g.Key)
+        .ToList();
+    int minEcoRow = rowGroups.Where(g => g.Key >= 10).Select(g => g.Key).DefaultIfEmpty(10).Min();
+    int maxRow = rowGroups.Select(g => g.Key).DefaultIfEmpty(19).Max();
+}
+
+<style>
+    .vj-legend-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 10px; font-size: .72rem; }
+    .vj-leg-item { display: flex; align-items: center; gap: 5px; color: #334155; font-weight: 500; }
+    .vj-leg-sq { width: 13px; height: 13px; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: .6rem; }
+
+    .vj-plane-wrap { max-width: 425px; margin: 0 auto; position: relative; }
+    .vj-nose-arch {
+        border: 2px solid #cbd5e1; border-bottom: none;
+        border-radius: 50% 50% 0 0 / 34px 34px 0 0;
+        height: 26px; background: linear-gradient(180deg, #f8fafc, #ffffff);
+        display: flex; align-items: flex-end; justify-content: center;
+        font-size: .64rem; color: #94a3b8; font-weight: 700; letter-spacing: .5px;
+    }
+    .vj-body-tube {
+        border-left: 2px solid #cbd5e1;
+        border-right: 2px solid #cbd5e1;
+        background: #ffffff;
+        padding: 4px 8px 10px;
+    }
+    .vj-tail-arch {
+        border: 2px solid #cbd5e1; border-top: none;
+        border-radius: 0 0 50% 50% / 0 0 34px 34px;
+        height: 26px; background: linear-gradient(180deg, #ffffff, #f8fafc);
+        display: flex; align-items: flex-start; justify-content: center; padding-top: 3px;
+        font-size: .64rem; color: #94a3b8; font-weight: 700; letter-spacing: .5px;
+    }
+    .vj-door-strip {
+        display: flex; justify-content: space-between; align-items: center;
+        font-size: .68rem; color: #64748b; padding: 4px 0; margin: 2px 0 6px;
+        border-top: 1px dashed #e2e8f0; border-bottom: 1px dashed #e2e8f0;
+    }
+    .vj-door-strip::before { content: "◀"; font-size: .55rem; color: #94a3b8; margin-right: 4px; }
+    .vj-door-strip::after { content: "▶"; font-size: .55rem; color: #94a3b8; margin-left: 4px; }
+    .vj-cabin-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr) 24px repeat(3, 1fr);
+        gap: 6px 3px;
+        align-items: center;
+        justify-items: center;
+    }
+    .vj-col-hdr { font-size: .74rem; font-weight: 700; color: #334155; padding: 2px 0; }
+    .vj-aisle-row { font-size: .72rem; font-weight: 700; color: #475569; }
+    .vj-seat-label {
+        width: 44px; height: 42px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+        cursor: pointer; transition: transform .12s ease; position: relative; border-radius: 7px; padding: 2px 1px;
+    }
+    .vj-seat-label:hover:not(.disabled) { transform: scale(1.1); z-index: 3; }
+    .vj-seat-svg { width: 22px; height: 22px; display: block; flex-shrink: 0; }
+    .vj-seat-price { font-size: .56rem; font-weight: 700; line-height: 1; margin-top: 1px; color: #334155; letter-spacing: -.2px; }
+    .vj-seat-price-bus { color: #be123c; }
+
+    /* Màu ghế y chang Vietjet */
+    .vj-bus .vj-seat-svg { fill: #e11d48; }        /* Ghế cao cấp - Đỏ */
+    .vj-front .vj-seat-svg { fill: #7c3aed; }      /* Ghế hàng trước - Tím */
+    .vj-exit .vj-seat-svg { fill: #0284c7; }       /* Ghế để chân rộng - Xanh dương */
+    .vj-std .vj-seat-svg { fill: #22c55e; }        /* Ghế tiêu chuẩn - Xanh lá */
+
+    .btn-check:checked + .vj-seat-label { background: #fef9c3; box-shadow: 0 0 0 2px #eab308; }
+    .btn-check:checked + .vj-seat-label .vj-seat-svg { fill: #facc15 !important; stroke: #b45309; stroke-width: 1.5; }
+
+    .vj-sold-box {
+        width: 30px; height: 30px; border-radius: 6px;
+        background: #cbd5e1; color: #64748b;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: .78rem; cursor: not-allowed; opacity: .75;
+    }
+    .vj-held-box {
+        width: 30px; height: 30px; border-radius: 6px;
+        background: #ffedd5; border: 1.5px solid #f97316; color: #ea580c;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: .72rem; cursor: not-allowed;
+    }
+</style>
+
+<!-- CHÚ THÍCH 6 MÀU CHUẨN VIETJET + KHUNG GIÁ THỰC TẾ -->
+<div class="vj-legend-grid mb-3 px-1">
+    <div class="vj-leg-item"><span class="vj-leg-sq" style="background:#e11d48;"></span>Ghế cao cấp / BUS (90k / nâng BUS)</div>
+    <div class="vj-leg-item"><span class="vj-leg-sq" style="background:#7c3aed;"></span>Ghế hàng trước (+40k)</div>
+    <div class="vj-leg-item"><span class="vj-leg-sq" style="background:#0284c7;"></span>Ghế để chân rộng (+90k)</div>
+    <div class="vj-leg-item"><span class="vj-leg-sq" style="background:#22c55e;"></span>Ghế tiêu chuẩn (+30k / 0đ)</div>
+    <div class="vj-leg-item"><span class="vj-leg-sq" style="background:#facc15;"></span>Ghế đang chọn</div>
+    <div class="vj-leg-item"><span class="vj-leg-sq" style="background:#cbd5e1;color:#475569;">✕</span>Đã có người</div>
+</div>
+
+<!-- MÔ HÌNH THÂN MÁY BAY THU NHỎ -->
+<div class="vj-plane-wrap">
+    <div class="vj-nose-arch">ĐẦU MÁY BAY</div>
+    <div class="vj-body-tube">
+        <div class="vj-door-strip">
+            <span>Cửa lên tàu bay</span>
+            <span class="text-muted" style="font-size:.62rem;">@maCB • @leg["TenMayBay"]</span>
+            <span>Cửa lên tàu bay</span>
+        </div>
+
+        <div class="vj-cabin-grid mb-1" title="A/F: Cửa sổ • B/E: Giữa • C/D: Lối đi">
+            <div class="vj-col-hdr">A</div>
+            <div class="vj-col-hdr">B</div>
+            <div class="vj-col-hdr">C</div>
+            <div class="vj-col-hdr text-muted" style="font-size:.6rem;">HÀNG</div>
+            <div class="vj-col-hdr">D</div>
+            <div class="vj-col-hdr">E</div>
+            <div class="vj-col-hdr">F</div>
+        </div>
+        <div class="d-flex justify-content-between text-muted px-1 mb-2" style="font-size:.6rem;">
+            <span>🪟 Cửa sổ trái • Giữa • Lối đi</span>
+            <span>Lối đi • Giữa • Cửa sổ phải 🪟</span>
+        </div>
+
+        @foreach (var grp in rowGroups)
+        {
+            int rNum = grp.Key;
+            if (rNum == 14)
+            {
+                <div class="vj-door-strip my-2" style="background:#eff6ff; color:#1d4ed8;">
+                    <span>Cửa thoát hiểm</span>
+                    <span class="fw-bold">VÙNG CÁNH • ĐỂ CHÂN RỘNG</span>
+                    <span>Cửa thoát hiểm</span>
+                </div>
+                <div class="vj-cabin-grid mb-1">
+                    <div class="vj-col-hdr">A</div><div class="vj-col-hdr">B</div><div class="vj-col-hdr">C</div>
+                    <div></div>
+                    <div class="vj-col-hdr">D</div><div class="vj-col-hdr">E</div><div class="vj-col-hdr">F</div>
+                </div>
+            }
+
+            var cols = grp.ToDictionary(s => ParseCol(s["SoGhe"].ToString()!), s => s);
+            string zoneText = rNum <= 2 ? "Đầu máy bay (Thương gia)"
+                            : rNum < 14 ? "Phần đầu khoang Phổ thông"
+                            : rNum == 14 ? "Giữa thân / Vùng cánh & Cửa thoát hiểm"
+                            : "Phần cuối / Gần đuôi máy bay";
+
+            <div class="vj-cabin-grid mb-1">
+                @foreach (var col in new[] { "A", "B", "C", "_ROW_", "D", "E", "F" })
+                {
+                    if (col == "_ROW_")
+                    {
+                        <div class="vj-aisle-row">@rNum</div>
+                        continue;
+                    }
+                    if (!cols.TryGetValue(col, out var g))
+                    {
+                        <div></div>
+                        continue;
+                    }
+
+                    string maGhe = g["MaGhe"].ToString()!;
+                    string soGhe = g["SoGhe"].ToString()!;
+                    string st = g["SeatState"].ToString()!;
+                    bool dis = st != "available";
+                    string hangGhe = g["MaHangGhe"].ToString()!;
+                    string viTri = col is "A" or "F" ? "Cạnh cửa sổ" : col is "C" or "D" ? "Cạnh lối đi" : "Ghế giữa";
+                    string side = col is "A" or "B" or "C" ? "bên Trái" : "bên Phải";
+                    decimal fee = Convert.ToDecimal(g["GiaChonGhe"]);
+                    decimal giaHang = Convert.ToDecimal(g["GiaVeSauHang"]);
+                    decimal bookedLegFare = leg.ContainsKey("GiaTheoHang") ? Convert.ToDecimal(leg["GiaTheoHang"]) : Convert.ToDecimal(leg["GiaVeCoBan"]);
+                    decimal upgradeDiff = Math.Max(0m, giaHang - bookedLegFare);
+                    decimal totalAddCost = fee + upgradeDiff;
+                    string costDesc = upgradeDiff > 0
+                        ? $" +{(upgradeDiff + fee):N0}đ (Nâng Thương gia)"
+                        : (fee > 0 ? $" +{fee:N0}đ" : " • Miễn phí (Theo hạng vé)");
+                    string desc = $"Ghế {soGhe} ({viTri} {side} • {zoneText}){costDesc}";
+
+                    string tierCls = (hangGhe == "BUS" || rNum == 10) ? "vj-bus" : rNum == 14 ? "vj-exit" : (rNum >= 11 && rNum <= 12) ? "vj-front" : "vj-std";
+
+                    <div>
+                        <input type="checkbox" class="btn-check seat-chk-@inputName chk-@inputName"
+                               name="@inputName" id="seat_@(maCB)_@maGhe" value="@maGhe"
+                               data-flight="@maCB" data-seatid="@maGhe" data-fee="@fee"
+                               data-upgrade="@upgradeDiff" data-addcost="@totalAddCost"
+                               data-price="@(giaHang + fee)" data-base="@leg["GiaVeCoBan"]"
+                               data-class="@hangGhe"
+                               data-desc="@desc" data-code="@soGhe"
+                               @(dis ? "disabled" : "")
+                               onchange="@(callbackFn)('@inputName', @maxSeats, '@maCB')" />
+                        <label class="vj-seat-label @tierCls @(dis ? "disabled" : "")" for="seat_@(maCB)_@maGhe"
+                               id="lbl_@(maCB)_@maGhe" title="@desc">
+                            @if (st == "sold" || st == "broken")
+                            {
+                                <span class="vj-sold-box">✕</span>
+                            }
+                            else if (st == "held")
+                            {
+                                <span class="vj-held-box" title="Đang được hành khách khác giữ chỗ 15 phút">🔒</span>
+                            }
+                            else
+                            {
+                                <!-- Hình ghế Vietjet bo vòm trên + đế phẳng + mức giá từng ghế -->
+                                <svg class="vj-seat-svg" viewBox="0 0 32 32">
+                                    <path d="M8 6C8 3.8 11 2.5 16 2.5C21 2.5 24 3.8 24 6V24C24 25.4 22.9 26.5 21.5 26.5H10.5C9.1 26.5 8 25.4 8 24V6Z" />
+                                    <rect x="6" y="23.5" width="20" height="4.5" rx="2" fill="rgba(0,0,0,0.16)" />
+                                </svg>
+                                @if (upgradeDiff > 0)
+                                {
+                                    <span class="vj-seat-price vj-seat-price-bus">+@((totalAddCost / 1000m).ToString("N0"))k</span>
+                                }
+                                else if (fee > 0)
+                                {
+                                    <span class="vj-seat-price @(rNum == 10 ? "vj-seat-price-bus" : "")">+@((fee / 1000m).ToString("N0"))k</span>
+                                }
+                                else
+                                {
+                                    <span class="vj-seat-price text-success">0đ</span>
+                                }
+                            }
+                        </label>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="vj-door-strip mt-2 mb-0">
+            <span>Cửa lên tàu bay</span>
+            <span class="text-muted" style="font-size:.6rem;">WC • Tiếp viên</span>
+            <span>Cửa lên tàu bay</span>
+        </div>
+    </div>
+    <div class="vj-tail-arch">ĐUÔI MÁY BAY</div>
+</div>
+
+<!-- HIỂN THỊ RÕ VỊ TRÍ GHẾ KHI CHỌN -->
+<div class="alert alert-light border mt-2 mb-0 py-2 px-3 small text-center" id="seatDescBox_@maCB">
+    Bấm vào biểu tượng ghế để xem vị trí chính xác (<strong>Cửa sổ / Giữa / Lối đi • Đầu / Cánh / Đuôi</strong>).
+</div>

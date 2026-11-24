@@ -1,0 +1,192 @@
+@using System.Data
+@{
+    ViewData["Title"] = "Phiếu xác nhận đặt chỗ & Lịch trình bay";
+    var don = ViewBag.DonDatCho as DataRow;
+    var ves = ViewBag.DanhSachVe as DataTable;
+    var dvs = ViewBag.DanhSachDichVu as DataTable;
+
+    string pnr = don!["MaDatCho"].ToString()!;
+    string trangThai = don["TrangThaiDonHang"].ToString()!;
+    DateTime hanTT = don["HanThanhToan"] != DBNull.Value
+        ? Convert.ToDateTime(don["HanThanhToan"])
+        : Convert.ToDateTime(don["NgayDat"]).AddHours(24);
+    string maKM = don["MaKM"] == DBNull.Value ? "" : don["MaKM"].ToString()!;
+
+    decimal tongCoBan = 0, tongThuePhi = 0, tongPhiGhe = 0, tongDV = 0;
+    if (ves != null)
+    {
+        foreach (DataRow v in ves.Rows)
+        {
+            tongCoBan += Convert.ToDecimal(v["GiaCoBan"]);
+            tongThuePhi += Convert.ToDecimal(v["ThuePhi"]);
+            tongPhiGhe += v["PhiChonGhe"] == DBNull.Value ? 0 : Convert.ToDecimal(v["PhiChonGhe"]);
+        }
+    }
+    if (dvs != null)
+    {
+        foreach (DataRow d in dvs.Rows)
+        {
+            tongDV += Convert.ToDecimal(d["ThanhTien"]);
+        }
+    }
+    decimal tienGiam = Convert.ToDecimal(don["TienGiam"]);
+    decimal tongThanhToan = Convert.ToDecimal(don["TongTienSauGiam"]) + tongDV;
+}
+
+<div class="container my-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print" style="max-width:920px;margin:0 auto;">
+        <a asp-action="Lookup" asp-route-maDatCho="@pnr" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <i class="bi bi-arrow-left me-1"></i>Quay lại hồ sơ PNR
+        </a>
+        <div class="d-flex gap-2">
+            @if (don["MaHD"] != DBNull.Value && !string.IsNullOrEmpty(don["MaHD"].ToString()))
+            {
+                <a asp-action="Invoice" asp-route-maDatCho="@pnr" class="btn btn-outline-success btn-sm rounded-pill px-3">
+                    <i class="bi bi-receipt me-1"></i>Xem Hóa đơn VAT
+                </a>
+            }
+            <button type="button" onclick="window.print()" class="btn btn-danger btn-sm rounded-pill px-4 fw-bold">
+                <i class="bi bi-printer-fill me-1"></i>In / Lưu PDF Xác nhận đặt chỗ
+            </button>
+        </div>
+    </div>
+
+    <!-- BIỂU MẪU 1 (HÌNH 1.2): PHIẾU XÁC NHẬN ĐẶT CHỖ & LỊCH TRÌNH BAY -->
+    <div class="sky-form-sheet">
+        <div class="sky-form-header-red d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <div class="sky-brand-gold">SkyVN Air.com</div>
+                <div class="small fw-semibold text-white text-uppercase">BAY LÀ THÍCH NGAY!</div>
+            </div>
+            <div class="text-md-end">
+                <div class="fs-5 fw-bold text-uppercase">XÁC NHẬN HÀNH TRÌNH &amp; ĐẶT CHỖ</div>
+                <div class="small text-warning fw-semibold">BOOKING CONFIRMATION &amp; ITINERARY</div>
+            </div>
+        </div>
+
+        <div class="p-4">
+            <div class="sky-pnr-banner mb-4">
+                <div class="row align-items-center g-2">
+                    <div class="col-md-7">
+                        <span class="fw-bold text-dark me-2">MÃ ĐẶT CHỖ (PNR):</span>
+                        <span class="fs-4 fw-bold text-danger">SKY - @pnr</span>
+                        <div class="small text-muted mt-1">
+                            @if (trangThai == "Đã thanh toán")
+                            {
+                                <span>Ngày đặt: @Convert.ToDateTime(don["NgayDat"]).ToString("yyyy-MM-dd HH:mm") • Đã xuất vé điện tử</span>
+                            }
+                            else
+                            {
+                                <span>Hạn thanh toán giữ chỗ: Trước @hanTT.ToString("yyyy-MM-dd HH:mm")</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-md-5 text-md-end">
+                        <div class="fw-bold @(trangThai == "Đã thanh toán" ? "text-success" : trangThai == "Đã hủy" ? "text-danger" : "text-warning text-dark")">
+                            Trạng thái: @(trangThai == "Đã thanh toán" ? "ĐÃ XÁC NHẬN & THANH TOÁN" : trangThai == "Chờ thanh toán" ? "ĐÃ GIỮ CHỖ / CHỜ THANH TOÁN" : trangThai.ToUpper())
+                        </div>
+                        <div class="small text-muted">Loại hành trình: @don["LoaiHanhTrinh"]</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 1. THÔNG TIN HÀNH KHÁCH -->
+            <div class="sky-sec-bar mb-2">1. THÔNG TIN HÀNH KHÁCH (PASSENGER INFORMATION)</div>
+            <div class="border p-3 mb-4">
+                @if (ves != null)
+                {
+                    var seenPassengers = new HashSet<string>();
+                    int hkIdx = 1;
+                    foreach (DataRow v in ves.Rows)
+                    {
+                        string key = $"{v["TenHanhKhach"]}|{v["SoGiayTo"]}";
+                        if (!seenPassengers.Add(key)) continue;
+                        <div class="@(hkIdx > 1 ? "border-top pt-2 mt-2" : "")">
+                            <div class="fw-semibold">
+                                Hành khách @hkIdx: <span class="text-uppercase fw-bold">@v["TenHanhKhach"]</span> (@v["LoaiHanhKhach"])
+                                &nbsp;&nbsp; @v["LoaiGiayTo"]: <strong>@v["SoGiayTo"]</strong>
+                                @if (v["QuocTich"] != DBNull.Value && !string.IsNullOrWhiteSpace(v["QuocTich"].ToString()))
+                                {
+                                    <span class="text-muted ms-2">• Quốc tịch: @v["QuocTich"]</span>
+                                }
+                            </div>
+                        </div>
+                        hkIdx++;
+                    }
+                }
+                <div class="small text-muted border-top pt-2 mt-2">
+                    Người liên hệ: <strong>@don["NguoiLienHe"]</strong> &nbsp;|&nbsp;
+                    Điện thoại: <strong>@(don["SDTLienHe"] == DBNull.Value || string.IsNullOrWhiteSpace(don["SDTLienHe"].ToString()) ? don["SDT"] : don["SDTLienHe"])</strong> &nbsp;|&nbsp;
+                    Email: <strong>@(don["EmailLienHe"] == DBNull.Value || string.IsNullOrWhiteSpace(don["EmailLienHe"].ToString()) ? don["Email"] : don["EmailLienHe"])</strong> &nbsp;|&nbsp;
+                    Hạng hội viên: <strong>@don["LoaiKhachHang"]</strong>
+                </div>
+            </div>
+
+            <!-- 2. CHI TIẾT CHUYẾN BAY -->
+            <div class="sky-sec-bar mb-2">2. CHI TIẾT CHUYẾN BAY (FLIGHT DETAILS)</div>
+            <div class="border p-3 mb-4">
+                @if (ves != null)
+                {
+                    int legIdx = 0;
+                    foreach (DataRow v in ves.Rows)
+                    {
+                        legIdx++;
+                        <div class="@(legIdx > 1 ? "border-top pt-3 mt-3" : "")">
+                            <div class="fw-bold mb-1">
+                                <span class="badge bg-dark me-1">@v["MaVe"]</span>
+                                <span class="badge @(v["HuongBay"].ToString() == "VE" ? "bg-info text-dark" : "bg-danger") me-1">
+                                    @(v["HuongBay"].ToString() == "VE" ? $"Lượt về • Chặng {v["ThuTuChang"]}" : $"Lượt đi • Chặng {v["ThuTuChang"]}")
+                                </span>
+                                Chuyến bay: <span class="text-danger">@v["MaChuyenBay"]</span> &nbsp;&nbsp;
+                                Hãng: @v["HangBay"] &nbsp;&nbsp;
+                                Tàu bay: @v["TenMayBay"] (@v["MaMayBay"])
+                            </div>
+                            <div class="small">
+                                Khởi hành: <strong>@v["ThanhPhoDi"] (@v["MaSanBayDi"])</strong> — @Convert.ToDateTime(v["NgayGioBay"]).ToString("HH:mm, 'Ngày' dd/MM/yyyy")
+                            </div>
+                            <div class="small">
+                                Đến nơi: <strong>@v["ThanhPhoDen"] (@v["MaSanBayDen"])</strong> — @Convert.ToDateTime(v["NgayGioDenDK"]).ToString("HH:mm, 'Ngày' dd/MM/yyyy")
+                                &nbsp;|&nbsp; Hạng ghế: <strong>@v["MaHangGhe"] (@v["TenHangGhe"])</strong> — Ghế: <strong class="text-danger">@v["SoGhe"]</strong>
+                                &nbsp;|&nbsp; Hành khách: <strong>@v["TenHanhKhach"]</strong>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            @if (dvs != null && dvs.Rows.Count > 0)
+            {
+                <div class="sky-sec-bar mb-2">3. DỊCH VỤ BỔ SUNG ĐÃ ĐĂNG KÝ (ADD-ON SERVICES)</div>
+                <div class="border p-3 mb-4 small">
+                    @foreach (DataRow d in dvs.Rows)
+                    {
+                        <div class="d-flex justify-content-between py-1">
+                            <span>• @d["TenDV"] (@d["LoaiDV"]) — <em>@d["TrangThaiThanhToan"]</em></span>
+                            <strong>@Convert.ToDecimal(d["ThanhTien"]).ToString("N0") VNĐ</strong>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- TỔNG KẾT GIÁ VÉ -->
+            <div class="border border-primary border-1 p-3" style="border-color:#173256 !important;">
+                <div class="small mb-2">
+                    Giá vé cơ bản: <strong>@tongCoBan.ToString("N0") VNĐ</strong> &nbsp;|&nbsp;
+                    Thuế &amp; Phí sân bay: <strong>@tongThuePhi.ToString("N0") VNĐ</strong> &nbsp;|&nbsp;
+                    Phí chọn ghế: <strong>@tongPhiGhe.ToString("N0") VNĐ</strong> &nbsp;|&nbsp;
+                    Dịch vụ thêm: <strong>@tongDV.ToString("N0") VNĐ</strong>
+                    @if (tienGiam > 0)
+                    {
+                        <span>&nbsp;|&nbsp; Mã KM (@(string.IsNullOrEmpty(maKM) ? "KM" : maKM)): <strong class="text-success">-@tienGiam.ToString("N0") VNĐ</strong></span>
+                    }
+                </div>
+                <div class="fs-4 fw-bold text-danger mb-2">
+                    TỔNG TIỀN THANH TOÁN: @tongThanhToan.ToString("N0") VNĐ
+                </div>
+                <div class="small text-muted">
+                    * Quý khách vui lòng có mặt tại sân bay trước giờ khởi hành tối thiểu 90 phút để làm thủ tục và ký gửi hành lý.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

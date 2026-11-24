@@ -9,11 +9,16 @@ namespace QL_DatVeMayBay.Services
     {
         private readonly string _connStr;
         private readonly IHubContext<SeatHub> _hubContext;
+        private readonly ILogger<SeatHoldCleanupService> _logger;
 
-        public SeatHoldCleanupService(IConfiguration config, IHubContext<SeatHub> hubContext)
+        public SeatHoldCleanupService(
+            IConfiguration config,
+            IHubContext<SeatHub> hubContext,
+            ILogger<SeatHoldCleanupService> logger)
         {
             _connStr = config.GetConnectionString("DefaultConnection")!;
             _hubContext = hubContext;
+            _logger = logger;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -22,49 +27,46 @@ namespace QL_DatVeMayBay.Services
             {
                 try
                 {
-                    await ReleaseExpiredBookingsAsync();
+                    await ReleaseExpiredBookingsAsync(stoppingToken);
                 }
-                catch
+                catch (OperationCanceledException)
                 {
-                    // Tránh ngắt luồng nền khi DB bận
+                    break;
                 }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Lỗi trong SeatHoldCleanupService khi quét đơn giữ chỗ quá hạn.");
+                }
+
                 await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
             }
         }
 
-        private async Task ReleaseExpiredBookingsAsync()
+        private async Task ReleaseExpiredBookingsAsync(CancellationToken ct)
         {
             using var conn = new SqlConnection(_connStr);
-            await conn.OpenAsync();
+            await conn.OpenAsync(ct);
 
-            // 1. Lấy danh sách các ghế sắp được giải phóng để báo Realtime cho các trình duyệt khác
-            string queryExpired = @"
-                SELECT v.MaChuyenBay, v.MaGhe
-                FROM VeMayBay v
-                JOIN PhieuDatCho p ON v.MaDatCho = p.MaDatCho
-                WHERE p.TrangThai = N'Chờ thanh toán' AND p.HanThanhToan < GETDATE();";
+            var released = new List<(string MaCB, int MaGhe, string MaDatCho)>();
 
-            var releasedSeats = new List<(string MaCB, int MaGhe)>();
-            using (var cmd = new SqlCommand(queryExpired, conn))
-            using (var reader = await cmd.ExecuteReaderAsync())
-            {
-                while (await reader.ReadAsync())
-                {
-                    releasedSeats.Add((reader.GetString(0), reader.GetInt32(1)));
-                }
-            }
-
-            if (releasedSeats.Count == 0) return;
-
-            // 2. Gọi Stored Procedure có sẵn của nhóm để hủy đơn quá hạn & Trigger tự hoàn ghế trống
+            // SP thực hiện atomic UPDATE trong transaction và trả về đúng tập ghế vừa được nhả
             using (var spCmd = new SqlCommand("sp_TuDongHuyDonGiuChoHetHan_Cursor", conn))
             {
                 spCmd.CommandType = CommandType.StoredProcedure;
-                await spCmd.ExecuteNonQueryAsync();
+                using var reader = await spCmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                {
+                    released.Add((reader.GetString(0), reader.GetInt32(1), reader.GetString(2)));
+                }
             }
 
-            // 3. Bắn SignalR cập nhật sơ đồ ghế cho tất cả trình duyệt đang mở
-            foreach (var group in releasedSeats.GroupBy(x => x.MaCB))
+            if (released.Count == 0) return;
+
+            _logger.LogInformation("Đã giải phóng {Count} ghế từ các đơn hết hạn 15 phút: {PNRs}",
+                released.Count,
+                string.Join(", ", released.Select(x => x.MaDatCho).Distinct()));
+
+            foreach (var group in released.GroupBy(x => x.MaCB))
             {
                 await _hubContext.Clients.Group($"FLIGHT_{group.Key}")
                     .SendAsync("SeatStatusChanged", new
@@ -72,8 +74,20 @@ namespace QL_DatVeMayBay.Services
                         maChuyenBay = group.Key,
                         seatIds = group.Select(x => x.MaGhe).ToList(),
                         isOccupied = false,
+                        seatState = "available",
                         message = "Một số ghế hết hạn giữ chỗ 15 phút đã trống trở lại!"
-                    });
+                    }, ct);
+            }
+
+            foreach (var pnr in released.Select(x => x.MaDatCho).Distinct())
+            {
+                await _hubContext.Clients.Group($"PAYMENT_{pnr}")
+                    .SendAsync("PaymentStatusUpdated", new
+                    {
+                        maDatCho = pnr,
+                        status = "Hết hạn giữ chỗ",
+                        message = "Phiên giữ chỗ 15 phút đã hết hạn."
+                    }, ct);
             }
         }
     }

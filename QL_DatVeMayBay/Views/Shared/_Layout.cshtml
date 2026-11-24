@@ -97,7 +97,7 @@
         </nav>
     </header>
 
-    <main class="flex-grow-1 animate-fade-up">
+    <main class="flex-grow-1">
         @RenderBody()
     </main>
 
@@ -118,6 +118,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", () => {
+            // Di chuyển các Bootstrap modal ra thẳng body để không bị kẹt dưới .modal-backdrop khi nằm trong container có transform
+            document.querySelectorAll('.modal').forEach(m => {
+                if (m.parentElement !== document.body) {
+                    document.body.appendChild(m);
+                }
+            });
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach((entry, idx) => {
                     if (entry.isIntersecting) {

@@ -1,0 +1,6 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 48" width="120" height="48">
+  <rect width="120" height="48" rx="10" fill="#005a70"/>
+  <circle cx="24" cy="24" r="12" fill="#d4af37"/>
+  <text x="24" y="28" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="800" fill="#0f172a" text-anchor="middle">VN</text>
+  <text x="44" y="29" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700" fill="#ffffff">VN AIR</text>
+</svg>

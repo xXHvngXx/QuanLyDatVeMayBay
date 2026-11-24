@@ -13,49 +13,58 @@ namespace QL_DatVeMayBay.Controllers
             if (!string.IsNullOrWhiteSpace(maDatCho))
             {
                 string query = @"
-                    SELECT * FROM vw_ChiTietVeVaHanhKhach 
-                    WHERE MaDatCho = @PNR 
-                      AND (@TenHK IS NULL OR TenHanhKhach LIKE N'%' + @TenHK + N'%')";
+                    SELECT * FROM vw_ChiTietVeVaHanhKhach
+                    WHERE MaDatCho = @PNR
+                      AND (@TenHK IS NULL OR UPPER(TenHanhKhach) LIKE N'%' + UPPER(@TenHK) + N'%')
+                    ORDER BY HuongBay ASC, ThuTuChang ASC;";
 
                 DataTable dt = DatabaseHelper.ExecuteQuery(
                     query,
                     CommandType.Text,
-                    new SqlParameter("@PNR", maDatCho.Trim().ToUpper()),
+                    new SqlParameter("@PNR", maDatCho.Trim().ToUpperInvariant()),
                     new SqlParameter("@TenHK", string.IsNullOrWhiteSpace(tenHanhKhach) ? DBNull.Value : tenHanhKhach.Trim())
                 );
 
                 if (dt.Rows.Count > 0)
                     ViewBag.DanhSachVe = dt;
                 else
-                    ViewBag.Error = "Không tìm thấy vé phù hợp với mã PNR và tên hành khách đã nhập!";
+                    ViewBag.Error = "Không tìm thấy vé phù hợp với mã PNR và họ tên hành khách đã nhập!";
             }
             return View();
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public IActionResult ConfirmCheckIn(string maVe, string maDatCho, string? tenHanhKhach)
         {
             try
             {
                 DataTable dt = DatabaseHelper.ExecuteQuery(
-                    "SELECT TrangThaiVe, NgayGioBay FROM vw_ChiTietVeVaHanhKhach WHERE MaVe = @MaVe",
+                    "SELECT TrangThaiVe, NgayGioBay FROM vw_ChiTietVeVaHanhKhach WHERE MaVe = @MaVe AND MaDatCho = @PNR",
                     CommandType.Text,
-                    new SqlParameter("@MaVe", maVe));
+                    new SqlParameter("@MaVe", maVe),
+                    new SqlParameter("@PNR", maDatCho.Trim().ToUpperInvariant()));
 
                 if (dt.Rows.Count == 0)
-                    throw new Exception("Không tìm thấy thông tin vé!");
+                    throw new Exception("Không tìm thấy thông tin vé hợp lệ!");
 
                 string trangThai = dt.Rows[0]["TrangThaiVe"].ToString()!;
                 if (trangThai != "Đã xuất vé")
                     throw new Exception($"Vé đang ở trạng thái '{trangThai}', không thể thực hiện Check-in!");
 
-                // Cập nhật trạng thái vé sang Đã Check-in (UC07)
+                DateTime gioBay = Convert.ToDateTime(dt.Rows[0]["NgayGioBay"]);
+                double gioConLai = (gioBay - DateTime.Now).TotalHours;
+                if (gioConLai < 1.0)
+                    throw new Exception("Quầy làm thủ tục trực tuyến đã đóng (trước giờ cất cánh dưới 60 phút). Vui lòng làm thủ tục trực tiếp tại sân bay!");
+                if (gioConLai > 24.0)
+                    throw new Exception($"Check-in trực tuyến chỉ mở trong vòng 24 giờ đến 1 giờ trước giờ bay (hiện còn {gioConLai:0.0} giờ). Vui lòng quay lại sau!");
+
                 DatabaseHelper.ExecuteNonQuery(
-                    "UPDATE VeMayBay SET TrangThai = N'Đã Check-in' WHERE MaVe = @MaVe",
+                    "UPDATE VeMayBay SET TrangThai = N'Đã Check-in' WHERE MaVe = @MaVe AND TrangThai = N'Đã xuất vé'",
                     CommandType.Text,
                     new SqlParameter("@MaVe", maVe));
 
-                TempData["Success"] = $"Check-in thành công cho vé {maVe}! Thẻ lên máy bay điện tử (Boarding Pass) đã được khởi tạo bên dưới.";
+                TempData["Success"] = $"Check-in thành công cho vé {maVe}! Thẻ lên máy bay điện tử (Boarding Pass) đã được khởi tạo.";
             }
             catch (Exception ex)
             {
