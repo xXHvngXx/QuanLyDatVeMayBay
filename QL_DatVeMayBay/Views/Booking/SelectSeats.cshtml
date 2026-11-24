@@ -1,114 +1,280 @@
 ﻿@{
-    ViewData["Title"] = "Chọn Ghế & Dịch Vụ Bổ Sung";
-    var chuyenDi = ViewBag.ChuyenDi as Dictionary<string, object>;
-    var gheDi = ViewBag.GheChuyenDi as List<Dictionary<string, object>> ?? new();
-    var chuyenVe = ViewBag.ChuyenVe as Dictionary<string, object>;
-    var gheVe = ViewBag.GheChuyenVe as List<Dictionary<string, object>>;
+    ViewData["Title"] = "Chọn Ghế & Nhập Hành Khách";
+    var legs = ViewBag.Legs as List<Dictionary<string, object>> ?? new();
     var dichVus = ViewBag.DichVuBoSung as List<Dictionary<string, object>> ?? new();
-    int soHK = ViewBag.SoHanhKhach ?? 1;
+    int nguoiLon = ViewBag.NguoiLon ?? 1;
+    int treEm = ViewBag.TreEm ?? 0;
+    int emBe = ViewBag.EmBe ?? 0;
+    int soGheCanChon = ViewBag.SoGheCanChon ?? 1;
+    int tongHK = ViewBag.TongHanhKhach ?? 1;
+    bool isIntl = ViewBag.IsInternational == true;
+    decimal taxPerPax = ViewBag.TaxPerSeatedPax ?? 220000m;
+    decimal taxPerChild = ViewBag.TaxPerChildPax ?? 110000m;
+
+    var paxTypes = new List<string>();
+    for (int i = 0; i < nguoiLon; i++) paxTypes.Add("Người lớn");
+    for (int i = 0; i < treEm; i++) paxTypes.Add("Trẻ em");
+    for (int i = 0; i < emBe; i++) paxTypes.Add("Em bé");
 }
 
+<style>
+    .seat-box { position: relative; font-size: .78rem; padding: 6px 2px; border-radius: 8px; }
+    .seat-available { background: #fff; border: 1.5px solid #94a3b8; color: #1e293b; }
+    .seat-available-bus { background: #fffbeb; border: 1.5px solid #d97706; color: #92400e; }
+    .btn-check:checked + .seat-box { background: #16a34a !important; color: #fff !important; border-color: #15803d !important; box-shadow: 0 0 0 2px rgba(22,163,74,.35); }
+    .seat-held { background: #ffedd5; border: 1.5px solid #f97316; color: #9a3412; cursor: not-allowed; opacity: .9; }
+    .seat-sold, .seat-broken { background: #cbd5e1; border: 1.5px solid #94a3b8; color: #475569; cursor: not-allowed; opacity: .75; }
+</style>
+
 <div class="container py-4">
+    <!-- STEP BAR -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 p-3 bg-white">
+        <div class="d-flex flex-wrap justify-content-around align-items-center gap-2 small fw-semibold">
+            <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>1. Chọn chuyến bay</span>
+            <i class="bi bi-chevron-right text-muted"></i>
+            <span class="text-danger"><span class="badge bg-danger rounded-pill me-1">2</span>Chọn ghế &amp; Hành khách</span>
+            <i class="bi bi-chevron-right text-muted"></i>
+            <span class="text-muted">3. Thanh toán VietQR</span>
+            <i class="bi bi-chevron-right text-muted"></i>
+            <span class="text-muted">4. Nhận vé &amp; VAT</span>
+        </div>
+    </div>
+
     @if (TempData["Error"] != null)
     {
-        <div class="alert alert-danger fw-bold">@TempData["Error"]</div>
+        <div class="alert alert-danger fw-bold rounded-4">@TempData["Error"]</div>
     }
-    <div id="realtimeAlert" class="alert alert-info d-none fw-semibold"></div>
+    <div id="realtimeAlert" class="alert alert-info d-none fw-semibold rounded-4"></div>
 
-    <form method="post" asp-action="HoldSeatsAndProceed">
-        <input type="hidden" name="maChuyenBayDi" value="@chuyenDi!["MaChuyenBay"]" />
-        @if (chuyenVe != null)
+    <form method="post" asp-action="HoldSeatsAndProceed" id="bookingForm">
+        <input type="hidden" name="maChuyenBayDi" value="@ViewBag.MaChuyenBayDi" />
+        @if (!string.IsNullOrEmpty((string?)ViewBag.MaChuyenBayDi2))
         {
-            <input type="hidden" name="maChuyenBayVe" value="@chuyenVe["MaChuyenBay"]" />
+            <input type="hidden" name="maChuyenBayDi2" value="@ViewBag.MaChuyenBayDi2" />
+        }
+        @if (!string.IsNullOrEmpty((string?)ViewBag.MaChuyenBayVe))
+        {
+            <input type="hidden" name="maChuyenBayVe" value="@ViewBag.MaChuyenBayVe" />
+        }
+        @if (!string.IsNullOrEmpty((string?)ViewBag.MaChuyenBayVe2))
+        {
+            <input type="hidden" name="maChuyenBayVe2" value="@ViewBag.MaChuyenBayVe2" />
         }
 
         <div class="row g-4">
-            <!-- SƠ ĐỒ GHẾ LƯỢT ĐI -->
-            <div class="@(chuyenVe != null ? "col-md-6" : "col-md-7")">
-                <div class="card shadow-sm rounded-4 p-4">
-                    <h5 class="fw-bold text-danger">1. Chọn @soHK ghế Lượt đi: @chuyenDi["MaChuyenBay"] (@chuyenDi["MaSanBayDi"] → @chuyenDi["MaSanBayDen"])</h5>
-                    <p class="small text-muted">Cập nhật đa luồng thời gian thực: Ghế màu xám là đã có người giữ/đặt.</p>
-                    <div class="row g-2 mt-2" id="seatGrid_@chuyenDi["MaChuyenBay"]">
-                        @foreach (var g in gheDi)
-                        {
-                            bool daDat = Convert.ToInt32(g["DaBiDat"]) == 1;
-                            <div class="col-3">
-                                <input type="checkbox" class="btn-check seat-chk-di" name="gheDiIds" id="seat_@g["MaGhe"]" value="@g["MaGhe"]" @(daDat ? "disabled" : "") onchange="limitCheck('.seat-chk-di', @soHK)">
-                                <label class="btn @(g["MaHangGhe"].ToString() == "BUS" ? "btn-outline-warning" : "btn-outline-secondary") w-100 fw-bold" for="seat_@g["MaGhe"]">
-                                    @g["SoGhe"] <small class="d-block">@g["MaHangGhe"]</small>
-                                </label>
-                            </div>
-                        }
+            <!-- CỘT CHÍNH: SƠ ĐỒ GHẾ TỪNG CHẶNG + THÔNG TIN HÀNH KHÁCH + DỊCH VỤ -->
+            <div class="col-lg-8">
+                <!-- CHÚ THÍCH 4 TRẠNG THÁI GHẾ -->
+                <div class="card border-0 shadow-sm rounded-4 p-3 mb-3 bg-white">
+                    <div class="d-flex flex-wrap gap-3 align-items-center small fw-semibold">
+                        <span>Trạng thái sơ đồ ghế (SignalR Realtime):</span>
+                        <span><span class="badge border border-secondary text-dark bg-white">Trống</span> Còn chọn được</span>
+                        <span><span class="badge bg-success">Đang chọn</span> Ghế của bạn</span>
+                        <span><span class="badge bg-warning text-dark">Đang giữ 15p</span> Người khác giữ</span>
+                        <span><span class="badge bg-secondary">Đã bán</span> Hết chỗ</span>
                     </div>
                 </div>
-            </div>
 
-            <!-- SƠ ĐỒ GHẾ LƯỢT VỀ (NẾU ĐẶT KHỨ HỒI) -->
-            @if (chuyenVe != null && gheVe != null)
-            {
-                <div class="col-md-6">
-                    <div class="card shadow-sm rounded-4 p-4">
-                        <h5 class="fw-bold text-primary">2. Chọn @soHK ghế Lượt về: @chuyenVe["MaChuyenBay"] (@chuyenVe["MaSanBayDi"] → @chuyenVe["MaSanBayDen"])</h5>
-                        <p class="small text-muted">Chọn đồng thời ghế cho chuyến về.</p>
-                        <div class="row g-2 mt-2" id="seatGrid_@chuyenVe["MaChuyenBay"]">
-                            @foreach (var g in gheVe)
+                <!-- SƠ ĐỒ GHẾ CHO TỪNG CHẶNG BAY (1 ĐẾN 4 CHẶNG) -->
+                @foreach (var leg in legs)
+                {
+                    string maCB = leg["MaChuyenBay"].ToString()!;
+                    string huong = leg["HuongBay"].ToString()!;
+                    int thuTu = Convert.ToInt32(leg["ThuTuChang"]);
+                    string inputName = (huong == "DI" && thuTu == 1) ? "gheDiIds"
+                                     : (huong == "DI" && thuTu == 2) ? "gheDi2Ids"
+                                     : (huong == "VE" && thuTu == 1) ? "gheVeIds"
+                                     : "gheVe2Ids";
+                    var seats = leg["Seats"] as List<Dictionary<string, object>> ?? new();
+
+                    <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                            <div>
+                                <span class="badge @(huong == "DI" ? "bg-danger" : "bg-primary") mb-1">@leg["LegLabel"]</span>
+                                <h5 class="fw-bold mb-0">@maCB: @leg["ThanhPhoDi"] (@leg["MaSanBayDi"]) → @leg["ThanhPhoDen"] (@leg["MaSanBayDen"])</h5>
+                                <small class="text-muted">Khởi hành: @Convert.ToDateTime(leg["NgayGioBay"]).ToString("dd/MM/yyyy HH:mm") • Chọn đúng <strong>@soGheCanChon</strong> ghế (Em bé ngồi cùng Người lớn)</small>
+                            </div>
+                            <span class="badge bg-light text-dark border fs-6" id="countBadge_@inputName">Đã chọn: 0/@soGheCanChon</span>
+                        </div>
+
+                        <div id="seatGrid_@maCB" data-flight="@maCB" data-group="@inputName">
+                            @await Html.PartialAsync("_AircraftSeatMap", null, new ViewDataDictionary(ViewData)
                             {
-                                bool daDat = Convert.ToInt32(g["DaBiDat"]) == 1;
-                                <div class="col-3">
-                                    <input type="checkbox" class="btn-check seat-chk-ve" name="gheVeIds" id="seat_@g["MaGhe"]" value="@g["MaGhe"]" @(daDat ? "disabled" : "") onchange="limitCheck('.seat-chk-ve', @soHK)">
-                                    <label class="btn @(g["MaHangGhe"].ToString() == "BUS" ? "btn-outline-warning" : "btn-outline-secondary") w-100 fw-bold" for="seat_@g["MaGhe"]">
-                                        @g["SoGhe"] <small class="d-block">@g["MaHangGhe"]</small>
-                                    </label>
-                                </div>
-                            }
+                                { "Leg", leg },
+                                { "InputName", inputName },
+                                { "OnChangeFn", "onSeatToggle" },
+                                { "MaxSeats", soGheCanChon }
+                            })
                         </div>
                     </div>
-                </div>
-            }
+                }
 
-            <!-- THÔNG TIN HÀNH KHÁCH + MUA THÊM DỊCH VỤ -->
-            <div class="col-12">
-                <div class="card shadow-sm rounded-4 p-4">
-                    <h5 class="fw-bold mb-3">Thông tin hành khách &amp; Dịch vụ bổ sung (Hành lý / Suất ăn / Chọn ghế)</h5>
-                    @for (int i = 0; i < soHK; i++)
+                <!-- THÔNG TIN HÀNH KHÁCH & GIẤY TỜ TÙY THÂN BẮT BUỘC -->
+                <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+                    <h5 class="fw-bold mb-1">Thông tin Hành khách &amp; Giấy tờ tùy thân (Bắt buộc)</h5>
+                    <p class="small text-muted mb-3">
+                        @if (isIntl)
+                        {
+                            <span class="text-danger fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i>Chặng bay quốc tế yêu cầu Hộ chiếu còn hạn ≥ 6 tháng tính từ ngày bay về.</span>
+                        }
+                        else
+                        {
+                            <span>Người lớn dùng CCCD (12 chữ số) hoặc Hộ chiếu; Trẻ em/Em bé dùng Giấy khai sinh kèm Người lớn đi cùng.</span>
+                        }
+                    </p>
+
+                    @for (int i = 0; i < paxTypes.Count; i++)
                     {
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-bold">Họ tên hành khách @(i + 1) *</label>
-                                <input type="text" name="tenHanhKhachs" class="form-control" required placeholder="VD: PHAM MINH HUNG" />
+                        string pType = paxTypes[i];
+                        bool isMinor = pType != "Người lớn";
+                        string defaultDob = pType == "Người lớn" ? "1998-05-15" : pType == "Trẻ em" ? "2018-06-01" : DateTime.Today.AddMonths(-10).ToString("yyyy-MM-dd");
+                        <div class="border rounded-4 p-3 mb-3 bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold text-primary">Hành khách #@(i + 1): @pType</span>
+                                <span class="badge @(pType == "Người lớn" ? "bg-dark" : pType == "Trẻ em" ? "bg-info text-dark" : "bg-warning text-dark")">
+                                    @(pType == "Người lớn" ? "100% giá + thuế" : pType == "Trẻ em" ? "90% giá + thuế" : "10% giá gốc, 0đ thuế (ngồi cùng NL)")
+                                </span>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-bold">Số CCCD / Hộ chiếu *</label>
-                                <input type="text" name="cccdHanhKhachs" class="form-control" required placeholder="VD: 079206001234" />
+                            <input type="hidden" name="passengers[@i].LoaiHanhKhach" value="@pType" />
+
+                            <div class="row g-2">
+                                <div class="col-md-5">
+                                    <label class="form-label small fw-semibold">Họ và tên (không dấu / theo giấy tờ) *</label>
+                                    <input type="text" name="passengers[@i].TenHanhKhach" class="form-control text-uppercase" required placeholder="VD: NGUYEN VAN AN" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-semibold">Ngày sinh *</label>
+                                    <input type="date" name="passengers[@i].NgaySinh" class="form-control" value="@defaultDob" max="@DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd")" required />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold">Quốc tịch *</label>
+                                    <input type="text" name="passengers[@i].QuocTich" class="form-control" value="Việt Nam" required />
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold">Loại giấy tờ *</label>
+                                    <select name="passengers[@i].LoaiGiayTo" class="form-select" id="docType_@i" onchange="togglePassportExpiry(@i)">
+                                        @if (isIntl)
+                                        {
+                                            <option value="Hộ chiếu" selected>Hộ chiếu (Passport)</option>
+                                        }
+                                        else if (!isMinor)
+                                        {
+                                            <option value="CCCD" selected>CCCD (12 số)</option>
+                                            <option value="Hộ chiếu">Hộ chiếu (Passport)</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="Giấy khai sinh" selected>Giấy khai sinh</option>
+                                            <option value="Hộ chiếu">Hộ chiếu (Passport)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold" id="docNumLbl_@i">@(isIntl ? "Số Hộ chiếu *" : !isMinor ? "Số CCCD *" : "Số Giấy khai sinh *")</label>
+                                    <input type="text" name="passengers[@i].SoGiayTo" id="docNumInput_@i" class="form-control text-uppercase" required
+                                           placeholder="@(isIntl ? "VD: C9123456 (6–12 ký tự)" : !isMinor ? "12 chữ số CCCD" : "Số giấy khai sinh")" />
+                                </div>
+                                <div class="col-md-4" id="passportExpCol_@i" style="display:@(isIntl ? "block" : "none")">
+                                    <label class="form-label small fw-semibold">Ngày hết hạn Hộ chiếu *</label>
+                                    <input type="date" name="passengers[@i].HanHoChieu" class="form-control" value="@DateTime.Today.AddYears(4).ToString("yyyy-MM-dd")" />
+                                </div>
+
+                                @if (isMinor)
+                                {
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold">Họ tên Người lớn đi cùng (bắt buộc cho Trẻ em/Em bé) *</label>
+                                        <input type="text" name="passengers[@i].NguoiLonDiCung" class="form-control text-uppercase" required placeholder="Nhập họ tên người lớn đi kèm" />
+                                    </div>
+                                }
                             </div>
                         </div>
                     }
 
-                    <h6 class="fw-bold text-primary mt-3">Mua thêm dịch vụ đi kèm (Có thể mua thêm sau khi đặt vé):</h6>
+                    <h6 class="fw-bold mt-4 mb-2">Thông tin người liên hệ nhận vé điện tử &amp; PNR</h6>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <input type="text" name="nguoiLienHe" class="form-control" value="@ViewBag.DefaultContactName" placeholder="Họ tên liên hệ *" required />
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" name="sdtLienHe" class="form-control" value="@ViewBag.DefaultContactPhone" placeholder="Số điện thoại *" required />
+                        </div>
+                        <div class="col-md-4">
+                            <input type="email" name="emailLienHe" class="form-control" value="@ViewBag.DefaultContactEmail" placeholder="Email nhận vé *" required />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DỊCH VỤ BỔ SUNG & KHUYẾN MÃI -->
+                <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+                    <h5 class="fw-bold text-primary mb-3">Dịch vụ bổ sung (Hành lý / Suất ăn / Phòng chờ / Chọn ghế)</h5>
                     <div class="row g-2 mb-3">
                         @foreach (var dv in dichVus)
                         {
-                            <div class="col-md-4">
-                                <div class="form-check border rounded-3 p-3">
-                                    <input class="form-check-input" type="checkbox" name="selectedServiceIds" value="@dv["MaDV"]" id="dv_@dv["MaDV"]">
+                            decimal giaDV = Convert.ToDecimal(dv["DonGia"]);
+                            <div class="col-md-6">
+                                <div class="form-check border rounded-3 p-3 h-100">
+                                    <input class="form-check-input addon-chk" type="checkbox" name="selectedServiceIds"
+                                           value="@dv["MaDV"]" id="dv_@dv["MaDV"]" data-price="@giaDV" onchange="recalcSummary()">
                                     <label class="form-check-label w-100" for="dv_@dv["MaDV"]">
                                         <strong>@dv["TenDV"]</strong>
-                                        <span class="badge bg-info text-dark float-end">+@Convert.ToDecimal(dv["DonGia"]).ToString("N0")đ</span>
-                                        <small class="d-block text-muted">@dv["LoaiDV"]</small>
+                                        <span class="badge bg-info text-dark float-end">+@giaDV.ToString("N0")đ</span>
+                                        <small class="d-block text-muted">@dv["LoaiDV"] • @dv["MoTa"]</small>
                                     </label>
                                 </div>
                             </div>
                         }
                     </div>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Mã khuyến mãi (VD: HE2026, VIPBAY, TET2027)</label>
+                            <input type="text" name="maKM" class="form-control text-uppercase" placeholder="Chỉ áp dụng giảm trên giá vé..." />
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                    <div class="row g-3 align-items-end">
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold">Mã khuyến mãi (VD: HE2026, VIPBAY)</label>
-                            <input type="text" name="maKM" class="form-control" placeholder="Nhập mã giảm giá..." />
+            <!-- CỘT PHẢI: TÓM TẮT CHI PHÍ MINH BẠCH -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-lg rounded-4 p-4 sticky-top bg-white" style="top: 85px;">
+                    <h5 class="fw-bold border-bottom pb-2 mb-3">Chi tiết giá vé &amp; Thanh toán</h5>
+                    <div class="small mb-3">
+                        @foreach (var l in legs)
+                        {
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>@l["MaChuyenBay"] (@l["MaSanBayDi"]→@l["MaSanBayDen"])</span>
+                                <strong>@Convert.ToDecimal(l["GiaVeCoBan"]).ToString("N0")đ</strong>
+                            </div>
+                        }
+                        <hr />
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Hành khách:</span>
+                            <span>@nguoiLon NL, @treEm TE, @emBe EB</span>
                         </div>
-                        <div class="col-md-8 text-end">
-                            <button type="submit" class="btn btn-danger btn-lg fw-bold px-5">Giữ ghế 15 phút &amp; Thanh toán Online →</button>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Giá vé &amp; Phí chọn ghế:</span>
+                            <strong id="sumFareDisplay">Chờ chọn ghế...</strong>
                         </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Thuế &amp; Phí sân bay (@soGheCanChon khách có ghế):</span>
+                            <strong id="sumTaxDisplay">@((taxPerPax * soGheCanChon).ToString("N0"))đ</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Dịch vụ bổ sung:</span>
+                            <strong id="sumAddonDisplay">0đ</strong>
+                        </div>
+                        <hr />
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">Tổng tạm tính:</span>
+                            <span class="fs-4 fw-bold text-danger" id="sumTotalDisplay">0đ</span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-danger btn-lg w-100 fw-bold rounded-pill shadow">
+                        Giữ chỗ 15 phút &amp; Thanh toán →
+                    </button>
+                    <div class="small text-muted text-center mt-2">
+                        <i class="bi bi-shield-lock-fill text-success me-1"></i>Tất cả chặng hợp nhất trong <strong>1 mã PNR duy nhất</strong>
                     </div>
                 </div>
             </div>
@@ -118,38 +284,132 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
 <script>
-    function limitCheck(selector, max) {
-        const checked = document.querySelectorAll(selector + ':checked');
-        if (checked.length > max) {
-            checked[0].checked = false;
+    const legGroups = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(legs.Select(l => l["MaChuyenBay"].ToString()).Distinct()));
+    const nlCount = @nguoiLon;
+    const teCount = @treEm;
+    const ebCount = @emBe;
+    const seatedCount = @soGheCanChon;
+    const taxTotal = @(taxPerPax * nguoiLon + taxPerChild * treEm);
+
+    function togglePassportExpiry(idx) {
+        const val = document.getElementById('docType_' + idx).value;
+        const lbl = document.getElementById('docNumLbl_' + idx);
+        const inp = document.getElementById('docNumInput_' + idx);
+        document.getElementById('passportExpCol_' + idx).style.display = (val === 'Hộ chiếu') ? 'block' : 'none';
+        if (val === 'Hộ chiếu') {
+            lbl.textContent = 'Số Hộ chiếu *';
+            inp.placeholder = 'VD: C9123456 (6–12 ký tự)';
+        } else if (val === 'Giấy khai sinh') {
+            lbl.textContent = 'Số Giấy khai sinh *';
+            inp.placeholder = 'Số/Mã giấy khai sinh';
+        } else {
+            lbl.textContent = 'Số CCCD *';
+            inp.placeholder = '12 chữ số CCCD';
         }
     }
 
-    // Kết nối SignalR đồng bộ sơ đồ ghế giữa các trình duyệt (Chrome, Edge...) theo thời gian thực
-    const connection = new signalR.HubConnectionBuilder().withUrl("/seatHub").build();
+    function onSeatToggle(groupName, max, maCB) {
+        const checked = document.querySelectorAll('.seat-chk-' + groupName + ':checked');
+        if (checked.length > max) {
+            checked[0].checked = false;
+        }
+        const active = Array.from(document.querySelectorAll('.seat-chk-' + groupName + ':checked'));
+        const badge = document.getElementById('countBadge_' + groupName);
+        if (badge) badge.textContent = `Đã chọn: ${active.length}/${max}`;
+        const descBox = document.getElementById('seatDescBox_' + maCB);
+        if (descBox) {
+            descBox.innerHTML = active.length > 0
+                ? `<strong class="text-success">✓ ${active[active.length - 1].dataset.desc}</strong>`
+                : 'Chạm vào ghế trên mô hình máy bay để xem rõ vị trí.';
+        }
+        recalcSummary();
+    }
+
+    function recalcSummary() {
+        let fareSum = 0;
+        document.querySelectorAll('div[data-group]').forEach(grid => {
+            const grp = grid.getAttribute('data-group');
+            const selected = Array.from(document.querySelectorAll(`.seat-chk-${grp}:checked`));
+            selected.forEach((el, idx) => {
+                const seatFull = parseFloat(el.dataset.price || '0');
+                const mult = (idx >= nlCount) ? 0.9 : 1.0;
+                fareSum += Math.round((seatFull * mult) / 1000) * 1000;
+            });
+            // Phí em bé = 10% giá cơ bản của chặng đó
+            const firstSeat = grid.querySelector('input[data-base]');
+            if (firstSeat && ebCount > 0) {
+                const base = parseFloat(firstSeat.dataset.base || '0');
+                fareSum += Math.max(100000, Math.round((base * 0.10) / 1000) * 1000) * ebCount;
+            }
+        });
+
+        let addonSum = 0;
+        document.querySelectorAll('.addon-chk:checked').forEach(el => {
+            addonSum += parseFloat(el.dataset.price || '0');
+        });
+
+        document.getElementById('sumFareDisplay').textContent = fareSum.toLocaleString('vi-VN') + 'đ';
+        document.getElementById('sumAddonDisplay').textContent = addonSum.toLocaleString('vi-VN') + 'đ';
+        document.getElementById('sumTotalDisplay').textContent = (fareSum + taxTotal + addonSum).toLocaleString('vi-VN') + 'đ';
+    }
+
+    // SignalR Real-time + Auto Reconnect Sync
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl("/seatHub")
+        .withAutomaticReconnect()
+        .build();
 
     connection.on("SeatStatusChanged", function (data) {
-        data.seatIds.forEach(id => {
-            const chk = document.getElementById("seat_" + id);
-            if (chk) {
+        const maCB = data.maChuyenBay;
+        (data.seatIds || []).forEach(id => {
+            const chk = document.getElementById(`seat_${maCB}_${id}`);
+            const lbl = document.getElementById(`lbl_${maCB}_${id}`);
+            if (chk && lbl) {
                 if (data.isOccupied) {
                     chk.checked = false;
                     chk.disabled = true;
+                    lbl.classList.remove('vj-bus', 'vj-front', 'vj-exit', 'vj-std');
+                    lbl.classList.add(data.seatState === 'sold' ? 'vj-sold' : 'vj-held');
                 } else {
                     chk.disabled = false;
+                    lbl.classList.remove('vj-held', 'vj-sold');
+                    lbl.classList.add('vj-std');
                 }
             }
         });
+        recalcSummary();
         const alertBox = document.getElementById("realtimeAlert");
-        alertBox.textContent = data.message || "Sơ đồ ghế vừa được cập nhật theo thời gian thực từ giao dịch khác!";
+        alertBox.textContent = data.message || "Sơ đồ ghế vừa được cập nhật theo thời gian thực!";
         alertBox.classList.remove("d-none");
     });
 
-    connection.start().then(() => {
-        connection.invoke("JoinFlightRoom", "@chuyenDi["MaChuyenBay"]");
-        @if (chuyenVe != null)
-        {
-                <text>connection.invoke("JoinFlightRoom", "@chuyenVe["MaChuyenBay"]");</text>
+    async function joinAllRoomsAndSync() {
+        for (const f of legGroups) {
+            await connection.invoke("JoinFlightRoom", f);
+            try {
+                const res = await fetch(`/Booking/GetSeatMapStatus?maChuyenBay=${encodeURIComponent(f)}`);
+                const seats = await res.json();
+                seats.forEach(s => {
+                    const chk = document.getElementById(`seat_${f}_${s.MaGhe}`);
+                    const lbl = document.getElementById(`lbl_${f}_${s.MaGhe}`);
+                    if (!chk || !lbl) return;
+                    if (s.SeatState !== 'available') {
+                        chk.checked = false;
+                        chk.disabled = true;
+                        lbl.classList.remove('seat-available', 'seat-available-bus');
+                        lbl.classList.add(s.SeatState === 'held' ? 'seat-held' : 'seat-sold');
+                    } else {
+                        chk.disabled = false;
+                        lbl.classList.remove('seat-held', 'seat-sold');
+                    }
+                });
+            } catch (e) { }
         }
+    }
+
+    connection.onreconnected(joinAllRoomsAndSync);
+    connection.start().then(() => {
+        legGroups.forEach(f => connection.invoke("JoinFlightRoom", f));
+        recalcSummary();
     });
 </script>

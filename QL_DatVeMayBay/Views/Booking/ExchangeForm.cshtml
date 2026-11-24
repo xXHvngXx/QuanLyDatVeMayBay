@@ -1,0 +1,91 @@
+@using System.Data
+@{
+    ViewData["Title"] = "Phiếu yêu cầu đổi vé & Dời lịch bay";
+    var r = ViewBag.PhieuDoi as DataRow;
+    int maYC = Convert.ToInt32(r!["MaYeuCau"]);
+    decimal giaCu = Convert.ToDecimal(r["GiaVeCu"]);
+    decimal giaMoi = Convert.ToDecimal(r["GiaVeMoi"]);
+    decimal chenhLech = Convert.ToDecimal(r!["PhiChenhLech"]);
+    decimal phiDichVuCoDinh = Convert.ToDecimal(r["TongThuThem"]);
+    decimal tongThuThem = chenhLech + phiDichVuCoDinh;
+    string pnr = r["MaDatCho"].ToString()!;
+    DateTime ngayXL = r["NgayXuLy"] != DBNull.Value ? Convert.ToDateTime(r["NgayXuLy"]) : Convert.ToDateTime(r["NgayYeuCau"]);
+}
+
+<div class="container my-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print" style="max-width:920px;margin:0 auto;">
+        <a asp-action="Lookup" asp-route-maDatCho="@pnr" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <i class="bi bi-arrow-left me-1"></i>Quay lại hồ sơ PNR
+        </a>
+        <a asp-action="ItineraryForm" asp-route-maDatCho="@pnr" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-semibold">
+            <i class="bi bi-file-earmark-text me-1"></i>Xem &amp; In Lịch trình bay mới
+        </a>
+    </div>
+
+    <!-- BIỂU MẪU 5 (HÌNH 1.6): PHIẾU YÊU CẦU ĐỔI VÉ / DỜI LỊCH BAY -->
+    <div class="sky-form-sheet">
+        <div class="sky-form-header-red d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="sky-brand-gold">SkyVN Air.com</div>
+            <div class="fs-5 fw-bold text-uppercase">PHIẾU YÊU CẦU ĐỔI VÉ / DỜI LỊCH BAY</div>
+        </div>
+
+        <div class="p-4">
+            <div class="border-bottom pb-2 mb-3 fw-semibold small">
+                Mã yêu cầu: <strong>YCD@(maYC.ToString("D3"))</strong> &nbsp;|&nbsp;
+                Ngày xử lý: <strong>@ngayXL.ToString("yyyy-MM-dd HH:mm:ss")</strong> &nbsp;|&nbsp;
+                Trạng thái: <strong class="text-success">@r["TrangThaiYeuCau"].ToString()!.ToUpper()</strong>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="border p-3 h-100 bg-light small lh-lg">
+                        <div class="fw-bold mb-2" style="color:#173256;">THÔNG TIN VÉ CŨ (ĐÃ HỦY)</div>
+                        <div>Mã vé: <strong>@r["MaVeCu"]</strong> (<span class="text-uppercase">@r["TenHanhKhach"]</span>)</div>
+                        <div>Chuyến bay: <strong>@r["MaCBCu"]</strong> (@r["SanBayDiCu"]-@r["SanBayDenCu"])</div>
+                        <div>Giờ bay: @Convert.ToDateTime(r["GioBayCu"]).ToString("HH:mm, 'Ngày' dd/MM/yyyy")</div>
+                        <div class="text-muted">Ghế: @r["SoGheCu"] &nbsp;|&nbsp; Giá vé cũ: @giaCu.ToString("N0") VNĐ</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="sky-green-panel h-100 small lh-lg">
+                        <div class="fw-bold text-success mb-2">THÔNG TIN CHUYẾN BAY MỚI (ĐÃ ĐỔI)</div>
+                        <div>Mã vé mới: <strong>@r["MaVeMoi"]</strong></div>
+                        <div>Chuyến bay mới: <strong>@r["MaCBMoi"]</strong> (@r["SanBayDiMoi"]-@r["SanBayDenMoi"])</div>
+                        @if (r["GioBayMoi"] != DBNull.Value)
+                        {
+                            <div>Giờ bay mới: @Convert.ToDateTime(r["GioBayMoi"]).ToString("HH:mm, 'Ngày' dd/MM/yyyy")</div>
+                        }
+                        <div class="fw-bold" style="color:#173256;">Ghế mới: @r["SoGheMoi"] &nbsp;|&nbsp; Giá vé mới: @giaMoi.ToString("N0") VNĐ</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sky-yellow-panel mb-3">
+                <div class="fw-bold mb-2" style="color:#173256;">CHI PHÍ ĐỔI CHUYẾN BAY:</div>
+                <div class="row small lh-lg" style="max-width:460px;">
+                    <div class="col-8">• Chênh lệch giá vé (Vé mới - Vé cũ):</div>
+                    <div class="col-4 text-end fw-semibold">@chenhLech.ToString("N0") VNĐ</div>
+                    <div class="col-8">• Phí dịch vụ đổi vé quy định của đại lý:</div>
+                    <div class="col-4 text-end fw-semibold">@phiDichVuCoDinh.ToString("N0") VNĐ</div>
+                </div>
+                <div class="fs-5 fw-bold text-danger mt-2">
+                    • TỔNG TIỀN KHÁCH PHẢI ĐÓNG THÊM: &nbsp;&nbsp; @tongThuThem.ToString("N0") VNĐ
+                </div>
+            </div>
+
+            <div class="small lh-lg">
+                <div class="fw-bold text-dark">
+                    Nhân viên thực hiện: @r["TenNVXuLy"]
+                    @if (r["MaNVXuLy"] != DBNull.Value)
+                    {
+                        <span>(@r["MaNVXuLy"])</span>
+                    }
+                    &nbsp;|&nbsp; Trạng thái phụ phí: Đã ghi nhận xử lý.
+                </div>
+                <div class="text-success">
+                    * Vé điện tử mới đã được cập nhật và gửi thông báo tới Email <strong>@r["EmailKhach"]</strong> của quý khách.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

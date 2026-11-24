@@ -24,18 +24,16 @@ body {
 @keyframes fadeInUp {
     from {
         opacity: 0;
-        transform: translate3d(0, 20px, 0);
     }
 
     to {
         opacity: 1;
-        transform: translate3d(0, 0, 0);
     }
 }
 
 .animate-fade-up {
     opacity: 0;
-    animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .delay-1 {
@@ -67,6 +65,18 @@ body {
     color: #ffffff;
     font-size: 0.82rem;
     font-weight: 500;
+}
+
+header.sticky-top {
+    z-index: 1010 !important;
+}
+
+.offcanvas-backdrop {
+    z-index: 1055 !important;
+}
+
+.offcanvas {
+    z-index: 1060 !important;
 }
 
 .vj-navbar {
@@ -276,17 +286,114 @@ body {
     margin-bottom: 0.85rem;
 }
 
+/* Shared Styles cho 6 Biểu mẫu Chứng từ chuẩn (In / Xuất PDF) */
+.sky-form-sheet {
+    max-width: 920px;
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
+.sky-form-header-red {
+    background: linear-gradient(90deg, #dc2626 0%, #b91c1c 100%);
+    color: #ffffff;
+    padding: 18px 24px;
+}
+
+.sky-form-header-navy {
+    background: #173256;
+    color: #ffffff;
+    padding: 18px 24px;
+}
+
+.sky-brand-gold {
+    color: #facc15;
+    font-weight: 800;
+    font-size: 1.65rem;
+    letter-spacing: -0.3px;
+}
+
+.sky-pnr-banner {
+    background: #fffbeb;
+    border: 2px solid #eab308;
+    padding: 14px 18px;
+}
+
+.sky-sec-bar {
+    background: #f1f5f9;
+    color: #173256;
+    font-weight: 800;
+    font-size: 0.92rem;
+    padding: 8px 14px;
+    border-left: 4px solid #173256;
+}
+
+.sky-yellow-panel {
+    background: #fffbeb;
+    border: 2px solid #eab308;
+    padding: 16px 20px;
+}
+
+.sky-green-panel {
+    background: #f0fdf4;
+    border: 1.5px solid #22c55e;
+    padding: 14px 18px;
+}
+
+.sky-stub-header {
+    background: #f5b800;
+    color: #111827;
+    font-weight: 800;
+    padding: 16px 18px;
+}
+
+.sky-barcode-bars {
+    width: 100%;
+    max-width: 215px;
+    margin: 0 auto;
+    padding: 6px 8px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
 @media print {
-    .no-print, header, footer {
+    .no-print, .promo-bar, header, nav, footer {
         display: none !important;
     }
 
-    body {
-        background: #fff !important;
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
 
-    .card-modern {
+    body {
+        background: #ffffff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    main {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .container {
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .sky-form-sheet, .card-modern {
         box-shadow: none !important;
-        border: 1px solid #cbd5e1 !important;
+        max-width: 100% !important;
+        border-radius: 0 !important;
+    }
+
+    .print-only-target.d-none-when-printing {
+        display: none !important;
     }
 }

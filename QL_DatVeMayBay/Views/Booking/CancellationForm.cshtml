@@ -1,0 +1,85 @@
+@using System.Data
+@{
+    ViewData["Title"] = "Phiếu yêu cầu hủy vé & Hoàn tiền";
+    var r = ViewBag.PhieuHuy as DataRow;
+    int maYC = Convert.ToInt32(r!["MaYeuCau"]);
+    int phanTramHoan = Convert.ToInt32(r["PhanTramHoan"]);
+    int phanTramPhat = 100 - phanTramHoan;
+    decimal gioTruocBay = Convert.ToDecimal(r["GioTruocBay"]);
+    decimal soTienGoc = Convert.ToDecimal(r["SoTienGoc"]);
+    decimal phiPhat = Convert.ToDecimal(r["PhiPhat"]);
+    decimal soTienHoan = Convert.ToDecimal(r["SoTienHoan"]);
+    string pnr = r["MaDatCho"].ToString()!;
+}
+
+<div class="container my-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print" style="max-width:920px;margin:0 auto;">
+        <a asp-action="Lookup" asp-route-maDatCho="@pnr" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <i class="bi bi-arrow-left me-1"></i>Quay lại hồ sơ PNR
+        </a>
+        <span class="badge bg-light text-secondary border rounded-pill px-3 py-2">
+            <i class="bi bi-shield-check me-1 text-success"></i>Chứng từ thẩm định hoàn tiền trực tuyến (Rule R12 - 72 giờ)
+        </span>
+    </div>
+
+    <!-- BIỂU MẪU 4 (HÌNH 1.5): PHIẾU YÊU CẦU HỦY VÉ & HOÀN TIỀN -->
+    <div class="sky-form-sheet">
+        <div class="sky-form-header-navy d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="sky-brand-gold">SkyVN Air.com</div>
+            <div class="fs-5 fw-bold text-uppercase">PHIẾU YÊU CẦU HỦY VÉ &amp; HOÀN TIỀN</div>
+        </div>
+
+        <div class="p-4">
+            <div class="border-bottom pb-2 mb-3 fw-semibold small">
+                Mã yêu cầu: <strong>YCH@(maYC.ToString("D3"))</strong> &nbsp;|&nbsp;
+                Ngày gửi: <strong>@Convert.ToDateTime(r["NgayYeuCau"]).ToString("yyyy-MM-dd HH:mm:ss")</strong> &nbsp;|&nbsp;
+                Trạng thái: <strong class="text-success">@r["TrangThaiYeuCau"].ToString()!.ToUpper()</strong>
+            </div>
+
+            <div class="fw-bold mb-2" style="color:#173256;">1. THÔNG TIN VÉ HỦY:</div>
+            <div class="small lh-lg mb-3">
+                <div>
+                    Mã vé: <strong>@r["MaVe"]</strong> &nbsp;&nbsp;
+                    Hành khách: <strong class="text-uppercase">@r["TenHanhKhach"]</strong> &nbsp;&nbsp;
+                    Chuyến bay: <strong>@r["MaChuyenBay"] (@r["MaSanBayDi"]-@r["MaSanBayDen"])</strong>
+                </div>
+                <div>
+                    Ngày giờ bay: <strong>@Convert.ToDateTime(r["NgayGioBay"]).ToString("yyyy-MM-dd HH:mm")</strong> &nbsp;&nbsp;
+                    Lý do hủy: <span>@r["LyDo"]</span>
+                </div>
+            </div>
+
+            <div class="sky-yellow-panel mb-4">
+                <div class="fw-bold mb-2" style="color:#173256;">2. KẾT QUẢ THẨM ĐỊNH QUY ĐỊNH HOÀN TIỀN (RULE R12 - 72 GIỜ):</div>
+                <div class="fw-bold text-success mb-2">
+                    • Thời gian yêu cầu hủy trước giờ bay: @gioTruocBay.ToString("N2") giờ
+                    (@(gioTruocBay > 72 ? "> 72.00 giờ" : gioTruocBay >= 24 ? "24.00 - 72.00 giờ" : "< 24.00 giờ"))
+                    =&gt; ÁP DỤNG MỨC HOÀN @phanTramHoan%
+                </div>
+                <div class="row small lh-lg" style="max-width:440px;">
+                    <div class="col-7">• Giá vé gốc ban đầu:</div>
+                    <div class="col-5 text-end fw-semibold">@soTienGoc.ToString("N0") VNĐ</div>
+                    <div class="col-7 text-muted">• Phí phạt hủy vé (@phanTramPhat%):</div>
+                    <div class="col-5 text-end text-muted">@phiPhat.ToString("N0") VNĐ</div>
+                </div>
+                <div class="fs-5 fw-bold text-danger mt-2">
+                    • SỐ TIỀN HOÀN TRẢ KHÁCH (@phanTramHoan%): &nbsp;&nbsp; @soTienHoan.ToString("N0") VNĐ
+                </div>
+            </div>
+
+            <div class="border p-3 bg-light small lh-lg">
+                <div class="fw-bold" style="color:#173256;">
+                    Xác nhận của Nhân viên CSKH: @r["TenNVXuLy"]
+                    @if (r["MaNVXuLy"] != DBNull.Value)
+                    {
+                        <span>(Mã NV: @r["MaNVXuLy"])</span>
+                    }
+                </div>
+                <div>Phương thức hoàn tiền: Hoàn tự động về tài khoản <strong>@r["PhuongThucHoan"]</strong> ban đầu của khách.</div>
+                <div class="text-success fw-semibold">
+                    Hệ thống đã tự động mở lại ghế trống <strong>@r["SoGhe"]</strong> trên chuyến bay <strong>@r["MaChuyenBay"]</strong>.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

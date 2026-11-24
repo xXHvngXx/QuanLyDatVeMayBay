@@ -1,131 +1,226 @@
 ﻿@using System.Data
+@using QL_DatVeMayBay.Services
 @{
-    ViewData["Title"] = "Hóa đơn điện tử VAT";
+    ViewData["Title"] = "Hóa đơn Giá trị Gia tăng Điện tử";
     var hd = ViewBag.HoaDon as DataRow;
     var ves = ViewBag.DanhSachVe as DataTable;
     var dvs = ViewBag.DanhSachDichVu as DataTable;
+
     decimal tongTienDichVu = 0;
     if (dvs != null)
     {
         foreach (DataRow d in dvs.Rows) tongTienDichVu += Convert.ToDecimal(d["ThanhTien"]);
     }
+    decimal tienGiam = Convert.ToDecimal(hd!["TienGiam"]);
+    decimal tongCongThanhToan = Convert.ToDecimal(hd["TongTienSauGiam"]) + tongTienDichVu;
+    bool isCorp = hd["LoaiHoaDonVAT"]?.ToString() == "Doanh nghiệp";
+    bool within72h = Convert.ToInt32(hd["Within72h"]) == 1;
+    string pnr = hd["MaDatCho"].ToString()!;
+    string maKM = hd["MaKM"] == DBNull.Value ? "" : hd["MaKM"].ToString()!;
+    DateTime ngayTT = Convert.ToDateTime(hd["NgayThanhToan"]);
+    DateTime ngayKy = hd["NgayYeuCauXuatVAT"] != DBNull.Value ? Convert.ToDateTime(hd["NgayYeuCauXuatVAT"]) : ngayTT;
 }
 
-<div class="container my-5">
-    <div class="d-flex justify-content-between align-items-center mb-3 no-print">
-        <a asp-action="Lookup" asp-route-maDatCho="@hd!["MaDatCho"]" class="btn btn-outline-secondary btn-sm rounded-pill">
-            <i class="bi bi-arrow-left me-1"></i>Quay lại hồ sơ PNR
-        </a>
-        <button onclick="window.print()" class="btn btn-sky rounded-pill px-4">
-            <i class="bi bi-printer-fill me-2"></i>In Hóa Đơn / Lưu PDF
-        </button>
+<div class="container my-4">
+    <!-- Thanh thao tác (ẩn khi in / xuất PDF) -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print" style="max-width:920px;margin:0 auto;">
+        <div class="d-flex gap-2">
+            <a asp-action="Lookup" asp-route-maDatCho="@pnr" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                <i class="bi bi-arrow-left me-1"></i>Quay lại hồ sơ PNR
+            </a>
+            <a asp-action="ItineraryForm" asp-route-maDatCho="@pnr" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+                <i class="bi bi-file-earmark-text me-1"></i>Xác nhận đặt chỗ
+            </a>
+        </div>
+        <div class="d-flex gap-2">
+            @if (within72h)
+            {
+                <button class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#vatEditBox">
+                    <i class="bi bi-building-gear me-1"></i>Đổi thông tin VAT (Cá nhân / DN)
+                </button>
+            }
+            <button type="button" onclick="window.print()" class="btn btn-danger btn-sm rounded-pill px-4 fw-bold">
+                <i class="bi bi-printer-fill me-1"></i>In / Xuất file PDF Hóa đơn VAT
+            </button>
+        </div>
     </div>
 
-    <div class="card card-modern p-4 p-md-5 bg-white">
-        <div class="row border-bottom pb-4 mb-4 align-items-center">
-            <div class="col-7">
-                <h4 class="fw-bold text-primary mb-1"><i class="bi bi-airplane-engines-fill text-warning me-2"></i>CÔNG TY HÀNG KHÔNG SKYVN AIRLINES</h4>
-                <div class="small text-muted">Mã số thuế: 0318202699 • Trụ sở: 140 Lê Trọng Tấn, Q. Tân Phú, TP.HCM</div>
-                <div class="small text-muted">Tổng đài CSKH: 1900 1008 • Email: billing@skyvn.vn</div>
+    @if (within72h)
+    {
+        <div class="collapse mb-3 no-print" id="vatEditBox" style="max-width:920px;margin:0 auto;">
+            <form method="post" asp-action="RequestVatInvoice" class="card card-body border-success shadow-sm">
+                <input type="hidden" name="maDatCho" value="@pnr" />
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Loại hóa đơn VAT</label>
+                        <select name="loaiHoaDonVAT" id="invVatType" class="form-select form-select-sm" onchange="toggleInvCorp()">
+                            <option value="Cá nhân" selected="@(!isCorp)">Cá nhân</option>
+                            <option value="Doanh nghiệp" selected="@(isCorp)">Doanh nghiệp (MST)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 inv-corp" style="display:@(isCorp ? "block" : "none");">
+                        <label class="form-label small fw-bold">Tên Công ty *</label>
+                        <input type="text" name="tenCongTyVAT" class="form-control form-control-sm" value="@(hd["TenCongTyVAT"] == DBNull.Value ? "" : hd["TenCongTyVAT"])" />
+                    </div>
+                    <div class="col-md-2 inv-corp" style="display:@(isCorp ? "block" : "none");">
+                        <label class="form-label small fw-bold">Mã số thuế *</label>
+                        <input type="text" name="maSoThueVAT" class="form-control form-control-sm" value="@(hd["MaSoThueVAT"] == DBNull.Value ? "" : hd["MaSoThueVAT"])" placeholder="10/13 số" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">Email nhận HĐ</label>
+                        <input type="email" name="emailNhanHoaDon" class="form-control form-control-sm" value="@(hd["EmailNhanHoaDon"] == DBNull.Value ? hd["Email"] : hd["EmailNhanHoaDon"])" />
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button type="submit" class="btn btn-success btn-sm fw-bold">Cập nhật VAT</button>
+                    </div>
+                    <div class="col-12 inv-corp" style="display:@(isCorp ? "block" : "none");">
+                        <label class="form-label small fw-bold">Địa chỉ Doanh nghiệp</label>
+                        <input type="text" name="diaChiCongTyVAT" class="form-control form-control-sm" value="@(hd["DiaChiCongTyVAT"] == DBNull.Value ? "" : hd["DiaChiCongTyVAT"])" />
+                    </div>
+                </div>
+            </form>
+        </div>
+    }
+
+    <!-- BIỂU MẪU 3 (HÌNH 1.4): HÓA ĐƠN GIÁ TRỊ GIA TĂNG (ĐIỆN TỬ) -->
+    <div class="sky-form-sheet p-4 p-md-5">
+        <div class="row align-items-center pb-3 mb-3" style="border-bottom: 3px solid #173256;">
+            <div class="col-4">
+                <div class="d-inline-block px-3 py-3" style="background:#dc2626;">
+                    <span class="sky-brand-gold fs-5">SkyVN Air.com</span>
+                </div>
             </div>
-            <div class="col-5 text-end">
-                <span class="badge bg-success mb-1">HÓA ĐƠN GIÁ TRỊ GIA TĂNG (E-INVOICE)</span>
-                <div class="fw-bold">Số HĐ: <span class="text-danger">@hd["MaHD"]</span></div>
-                <div class="small text-muted">Mã PNR: <strong>@hd["MaDatCho"]</strong></div>
-                <div class="small text-muted">Ngày lập: @Convert.ToDateTime(hd["NgayLap"]).ToString("dd/MM/yyyy HH:mm")</div>
+            <div class="col-8 text-center">
+                <div class="fs-4 fw-bold text-uppercase" style="color:#173256;">HÓA ĐƠN GIÁ TRỊ GIA TĂNG (ĐIỆN TỬ)</div>
+                <div class="small text-secondary fw-semibold">VAT ELECTRONIC INVOICE</div>
+                <div class="small text-muted mt-1">
+                    Ký hiệu: <strong>SKY/26E</strong> - Số: <strong class="text-danger">@hd["MaHD"]</strong> - Ngày: @ngayTT.ToString("yyyy-MM-dd")
+                </div>
             </div>
         </div>
 
-        <div class="row mb-4 small">
+        <div class="mb-3 small lh-lg">
+            <div class="fw-bold" style="color:#111827;">Đơn vị bán hàng: <span class="text-uppercase">CÔNG TY CỔ PHẦN HÀNG KHÔNG SKYVN AIRLINES</span></div>
+            <div class="text-muted">Mã số thuế: 0318202699 &nbsp;|&nbsp; Địa chỉ: 140 Lê Trọng Tấn, Q. Tân Phú, TP. Hồ Chí Minh</div>
+            @if (isCorp)
+            {
+                <div>Đơn vị mua hàng: <strong class="text-uppercase">@hd["TenCongTyVAT"]</strong> &nbsp;|&nbsp; MST: <strong>@hd["MaSoThueVAT"]</strong> &nbsp;|&nbsp; Địa chỉ: @hd["DiaChiCongTyVAT"]</div>
+            }
+            <div>
+                Người mua hàng: <strong class="text-uppercase">@hd["TenKH"]</strong>
+                @if (hd["CCCD"] != DBNull.Value && !string.IsNullOrWhiteSpace(hd["CCCD"].ToString()))
+                {
+                    <span>&nbsp;|&nbsp; CCCD: @hd["CCCD"]</span>
+                }
+                &nbsp;|&nbsp; Email: @(hd["EmailNhanHoaDon"] == DBNull.Value ? hd["Email"] : hd["EmailNhanHoaDon"])
+                &nbsp;|&nbsp; SĐT: @hd["SDT"]
+            </div>
+            <div>
+                Hình thức thanh toán: <strong>@hd["PhuongThuc"]</strong> &nbsp;|&nbsp;
+                Mã giao dịch: <strong>@hd["MaGiaoDich"]</strong> &nbsp;|&nbsp;
+                Mã PNR: <strong class="text-danger">@pnr</strong>
+            </div>
+        </div>
+
+        <div class="border rounded-0 mb-4">
+            <table class="table table-borderless align-middle small mb-0">
+                <thead style="background:#f8fafc;color:#173256;">
+                    <tr class="border-bottom">
+                        <th class="text-center py-2" style="width:60px;">STT</th>
+                        <th class="py-2">TÊN HÀNG HÓA, DỊCH VỤ</th>
+                        <th class="text-center py-2">HẠNG GHẾ</th>
+                        <th class="text-center py-2">SỐ LƯỢNG</th>
+                        <th class="text-end py-2 pe-3">THÀNH TIỀN (VNĐ)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ int stt = 1; }
+                    @if (ves != null)
+                    {
+                        foreach (DataRow v in ves.Rows)
+                        {
+                            <tr>
+                                <td class="text-center">@stt</td>
+                                <td>
+                                    <div class="fw-semibold">Vé máy bay chặng @v["MaSanBayDi"] - @v["MaSanBayDen"] (@v["MaChuyenBay"]) — @v["TenHanhKhach"]</div>
+                                    <div class="text-muted" style="font-size:0.75rem;">Mã vé: @v["MaVe"] • Giá cơ bản @Convert.ToDecimal(v["GiaCoBan"]).ToString("N0")đ + Thuế/Phí @Convert.ToDecimal(v["ThuePhi"]).ToString("N0")đ</div>
+                                </td>
+                                <td class="text-center">@v["MaHangGhe"] (@v["SoGhe"])</td>
+                                <td class="text-center">1</td>
+                                <td class="text-end pe-3 fw-semibold">@Convert.ToDecimal(v["GiaVe"]).ToString("N0")</td>
+                            </tr>
+                            stt++;
+                        }
+                    }
+                    @if (dvs != null)
+                    {
+                        foreach (DataRow d in dvs.Rows)
+                        {
+                            <tr>
+                                <td class="text-center">@stt</td>
+                                <td>
+                                    <div class="fw-semibold">@d["TenDV"] (@d["LoaiDV"])</div>
+                                    <div class="text-muted" style="font-size:0.75rem;">Mã GD dịch vụ: @d["MaGiaoDich"]</div>
+                                </td>
+                                <td class="text-center">DV</td>
+                                <td class="text-center">@d["SoLuong"]</td>
+                                <td class="text-end pe-3 fw-semibold">@Convert.ToDecimal(d["ThanhTien"]).ToString("N0")</td>
+                            </tr>
+                            stt++;
+                        }
+                    }
+                    @if (tienGiam > 0)
+                    {
+                        <tr class="text-muted">
+                            <td></td>
+                            <td colspan="3">Chiết khấu Voucher khuyến mãi (@(string.IsNullOrEmpty(maKM) ? "KM" : maKM))</td>
+                            <td class="text-end pe-3">- @tienGiam.ToString("N0")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="border-top">
+                    <tr>
+                        <td colspan="3"></td>
+                        <td class="text-end fw-semibold">Cộng tiền hàng hóa, dịch vụ:</td>
+                        <td class="text-end pe-3 fw-semibold">@tongCongThanhToan.ToString("N0") VNĐ</td>
+                    </tr>
+                    <tr>
+                        <td colspan="3"></td>
+                        <td class="text-end fw-bold text-danger fs-6">TỔNG TIỀN THANH TOÁN (ĐÃ VAT):</td>
+                        <td class="text-end pe-3 fw-bold text-danger fs-6">@tongCongThanhToan.ToString("N0") VNĐ</td>
+                    </tr>
+                    <tr class="border-top bg-light">
+                        <td colspan="5" class="py-2 px-3">
+                            <strong>Số tiền viết bằng chữ:</strong> <em>@VietnameseCurrencyHelper.NumberToVietnameseWords(tongCongThanhToan)</em>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="row g-3 small">
             <div class="col-md-6">
-                <div class="fw-bold text-uppercase text-secondary mb-1">Thông tin người mua hàng</div>
-                <div>Họ tên khách hàng: <strong>@hd["TenKH"]</strong></div>
-                <div>CCCD / Định danh: @(hd["CCCD"] == DBNull.Value ? "N/A" : hd["CCCD"])</div>
-                <div>Điện thoại / Email: @hd["SDT"] — @hd["Email"]</div>
-                <div>Địa chỉ: @(hd["DiaChi"] == DBNull.Value ? "TP. Hồ Chí Minh" : hd["DiaChi"])</div>
+                <div class="border p-3 h-100 bg-light">
+                    <div class="fw-bold mb-2" style="color:#173256;">NGƯỜI MUA HÀNG</div>
+                    <div class="text-muted">Đã xác nhận thanh toán điện tử qua @hd["PhuongThuc"]</div>
+                    <div class="text-muted mt-1">Đối tượng xuất hóa đơn: <strong>@hd["LoaiHoaDonVAT"]</strong></div>
+                </div>
             </div>
-            <div class="col-md-6 text-md-end mt-3 mt-md-0">
-                <div class="fw-bold text-uppercase text-secondary mb-1">Thông tin giao dịch</div>
-                <div>Hình thức thanh toán: <strong>@hd["PhuongThuc"]</strong></div>
-                <div>Mã chuẩn chi (TXN): <code>@hd["MaGiaoDich"]</code></div>
-                <div>Trạng thái: <strong class="text-success">@hd["TrangThai"]</strong></div>
-            </div>
-        </div>
-
-        <table class="table table-bordered align-middle small mb-4">
-            <thead class="table-light">
-                <tr>
-                    <th class="text-center">STT</th>
-                    <th>Mã vé / Dịch vụ</th>
-                    <th>Nội dung chi tiết</th>
-                    <th class="text-center">Hạng / SL</th>
-                    <th class="text-end">Thành tiền (VNĐ)</th>
-                </tr>
-            </thead>
-            <tbody>
-                @{
-                    int stt = 1;
-                }
-                @if (ves != null)
-                {
-                    foreach (DataRow v in ves.Rows)
-                    {
-                        <tr>
-                            <td class="text-center">@stt</td>
-                            <td class="fw-semibold">@v["MaVe"]</td>
-                            <td>
-                                <strong>@v["TenHanhKhach"]</strong> — Chuyến @v["MaChuyenBay"] (@v["ThanhPhoDi"] → @v["ThanhPhoDen"])
-                            </td>
-                            <td class="text-center">@v["TenHangGhe"] (@v["SoGhe"])</td>
-                            <td class="text-end">@Convert.ToDecimal(v["GiaVe"]).ToString("N0")</td>
-                        </tr>
-                        stt++;
-                    }
-                }
-                @if (dvs != null)
-                {
-                    foreach (DataRow d in dvs.Rows)
-                    {
-                        <tr>
-                            <td class="text-center">@stt</td>
-                            <td class="fw-semibold text-primary">@d["LoaiDV"]</td>
-                            <td>@d["TenDV"] (Mã GD: @d["MaGiaoDich"])</td>
-                            <td class="text-center">x @d["SoLuong"]</td>
-                            <td class="text-end">@Convert.ToDecimal(d["ThanhTien"]).ToString("N0")</td>
-                        </tr>
-                        stt++;
-                    }
-                }
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="4" class="text-end fw-semibold">Cộng tiền vé máy bay:</td>
-                    <td class="text-end">@Convert.ToDecimal(hd["TongTienGoc"]).ToString("N0") VNĐ</td>
-                </tr>
-                <tr>
-                    <td colspan="4" class="text-end fw-semibold">Cộng dịch vụ bổ sung (Hành lý / Suất ăn / Ghế):</td>
-                    <td class="text-end">@tongTienDichVu.ToString("N0") VNĐ</td>
-                </tr>
-                <tr>
-                    <td colspan="4" class="text-end text-success">Chiết khấu khuyến mãi:</td>
-                    <td class="text-end text-success">- @Convert.ToDecimal(hd["TienGiam"]).ToString("N0") VNĐ</td>
-                </tr>
-                <tr class="table-primary">
-                    <td colspan="4" class="text-end fw-bold fs-6">TỔNG CỘNG TIỀN THANH TOÁN:</td>
-                    <td class="text-end fw-bold fs-6 text-danger">@((Convert.ToDecimal(hd["TongTienSauGiam"]) + tongTienDichVu).ToString("N0")) VNĐ</td>
-                </tr>
-            </tfoot>
-        </table>
-
-        <div class="row text-center small mt-5 pt-3">
-            <div class="col-6">
-                <div class="fw-bold">Người mua hàng</div>
-                <div class="text-muted fst-italic">(Ký, ghi rõ họ tên)</div>
-            </div>
-            <div class="col-6">
-                <div class="fw-bold">Đại diện SkyVN Airlines</div>
-                <div class="text-success fw-semibold mt-2"><i class="bi bi-patch-check-fill me-1"></i>Đã ký số điện tử hợp lệ (Trong 72h)</div>
+            <div class="col-md-6">
+                <div class="sky-green-panel h-100">
+                    <div class="fw-bold text-success mb-1">ĐƠN VỊ BÁN HÀNG (CHỮ KÝ SỐ ĐIỆN TỬ)</div>
+                    <div>Ký bởi: <strong>CÔNG TY CỔ PHẦN HÀNG KHÔNG SKYVN AIRLINES</strong></div>
+                    <div>Ngày ký: @ngayKy.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                    <div class="fw-bold text-success mt-1">Trạng thái: HÓA ĐƠN HỢP LỆ THEO QUY ĐỊNH THUẾ</div>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    function toggleInvCorp() {
+        const show = document.getElementById('invVatType')?.value === 'Doanh nghiệp';
+        document.querySelectorAll('.inv-corp').forEach(el => el.style.display = show ? 'block' : 'none');
+    }
+</script>

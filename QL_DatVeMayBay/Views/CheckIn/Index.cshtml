@@ -2,14 +2,34 @@
 @{
     ViewData["Title"] = "Check-in Trực tuyến & Thẻ lên máy bay";
     var dtVes = ViewBag.DanhSachVe as DataTable;
+    bool hasCheckedIn = false;
+    if (dtVes != null)
+    {
+        foreach (DataRow row in dtVes.Rows)
+        {
+            if (row["TrangThaiVe"]?.ToString() == "Đã Check-in")
+            {
+                hasCheckedIn = true;
+                break;
+            }
+        }
+    }
 }
 
 <div class="container my-5">
-    <div class="row justify-content-center mb-4">
-        <div class="col-lg-8">
+    <div class="row justify-content-center mb-4 no-print">
+        <div class="col-lg-9">
             <div class="card card-modern p-4">
-                <h4 class="fw-bold mb-2"><i class="bi bi-qr-code-scan text-primary me-2"></i>Làm thủ tục Check-in trực tuyến (UC07)</h4>
-                <p class="text-muted small mb-3">Nhập mã đặt chỗ (PNR) và họ tên hành khách để nhận Thẻ lên máy bay điện tử (Boarding Pass).</p>
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+                    <h4 class="fw-bold mb-0"><i class="bi bi-qr-code-scan text-danger me-2"></i>Làm thủ tục Check-in trực tuyến &amp; Thẻ lên máy bay</h4>
+                    @if (hasCheckedIn)
+                    {
+                        <button type="button" onclick="window.print()" class="btn btn-danger btn-sm rounded-pill px-4 fw-bold">
+                            <i class="bi bi-printer-fill me-1"></i>In / Xuất PDF Tất cả Thẻ lên máy bay
+                        </button>
+                    }
+                </div>
+                <p class="text-muted small mb-3">Nhập mã đặt chỗ (PNR) và họ tên hành khách để làm thủ tục Check-in và nhận Thẻ lên máy bay điện tử.</p>
                 <form method="get" asp-action="Index" class="row g-2">
                     <div class="col-md-5">
                         <input type="text" name="maDatCho" class="form-control form-control-lg" placeholder="Mã PNR (VD: PNR00001)" value="@Context.Request.Query["maDatCho"]" required />
@@ -27,15 +47,15 @@
 
     @if (TempData["Success"] != null)
     {
-        <div class="alert alert-success">@TempData["Success"]</div>
+        <div class="alert alert-success no-print">@TempData["Success"]</div>
     }
     @if (TempData["Error"] != null)
     {
-        <div class="alert alert-danger">@TempData["Error"]</div>
+        <div class="alert alert-danger no-print">@TempData["Error"]</div>
     }
     @if (ViewBag.Error != null)
     {
-        <div class="alert alert-warning text-center">@ViewBag.Error</div>
+        <div class="alert alert-warning text-center no-print">@ViewBag.Error</div>
     }
 
     @if (dtVes != null)
@@ -43,66 +63,142 @@
         foreach (DataRow v in dtVes.Rows)
         {
             string maVe = v["MaVe"].ToString()!;
+            string safeId = maVe.Replace("-", "_");
             string trangThai = v["TrangThaiVe"].ToString()!;
             DateTime gioBay = Convert.ToDateTime(v["NgayGioBay"]);
-            DateTime boardingTime = gioBay.AddMinutes(-30);
+            DateTime boardingTime = gioBay.AddMinutes(-40);
+            int gateNum = 10 + (Math.Abs(v["MaChuyenBay"].ToString()!.GetHashCode()) % 12);
 
             if (trangThai == "Đã Check-in")
             {
-                <!-- THẺ LÊN MÁY BAY ĐIỆN TỬ (BOARDING PASS - UC15) -->
-                <div class="card card-modern overflow-hidden mb-4 border border-primary">
-                    <div class="bg-primary text-white px-4 py-3 d-flex justify-content-between align-items-center">
-                        <div class="fw-bold fs-5"><i class="bi bi-airplane-fill me-2"></i>@v["HangBay"] — BOARDING PASS</div>
-                        <span class="badge bg-warning text-dark">THẺ LÊN MÁY BAY ĐIỆN TỬ</span>
+                // Sinh mã vạch SVG chuẩn theo chuỗi vé, tự co giãn vừa khung (không bao giờ tràn khung)
+                string barcodePayload = $"{maVe}|{v["MaChuyenBay"]}|{v["SoGhe"]}";
+                var bars = new List<(int X, int W)>();
+                int curX = 2;
+                // Start guard
+                bars.Add((curX, 2)); curX += 4;
+                bars.Add((curX, 1)); curX += 3;
+                foreach (char ch in barcodePayload)
+                {
+                    int w1 = ((int)ch % 3) + 1;
+                    int s1 = (((int)ch / 2) % 2) + 1;
+                    int w2 = (((int)ch / 4) % 2) + 1;
+                    bars.Add((curX, w1)); curX += w1 + s1;
+                    bars.Add((curX, w2)); curX += w2 + 2;
+                }
+                // Stop guard
+                bars.Add((curX, 2)); curX += 4;
+                bars.Add((curX, 2)); curX += 4;
+                int svgWidth = Math.Max(curX, 100);
+
+                <!-- BIỂU MẪU 2 (HÌNH 1.3): THẺ LÊN MÁY BAY ĐIỆN TỬ & CUỐNG VÉ -->
+                <div class="sky-form-sheet mb-4 boarding-pass-card" id="bp_@safeId">
+                    <div class="row g-0">
+                        <div class="col-md-8 sky-form-header-red d-flex flex-wrap justify-content-between align-items-center py-3 px-4 gap-2">
+                            <div class="d-flex align-items-center gap-3">
+                                <span class="sky-brand-gold fs-4">SkyVN Air</span>
+                                <span class="fw-bold fs-6 text-uppercase">THẺ LÊN MÁY BAY / BOARDING PASS</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 sky-stub-header d-flex align-items-center py-3 px-4">
+                            <span>SkyVN Air (Cuống vé)</span>
+                        </div>
                     </div>
-                    <div class="card-body p-4">
-                        <div class="row align-items-center g-4">
-                            <div class="col-md-8 border-end-md">
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <div class="small text-muted">HÀNH KHÁCH / PASSENGER</div>
-                                        <div class="fs-5 fw-bold text-uppercase">@v["TenHanhKhach"]</div>
+
+                    <div class="row g-0 bg-white">
+                        <!-- Phần Thẻ chính bên trái -->
+                        <div class="col-md-8 p-4" style="border-right: 2px dashed #94a3b8;">
+                            <div class="mb-3">
+                                <div class="small text-muted">Tên hành khách / Name:</div>
+                                <div class="fs-5 fw-bold text-uppercase text-dark">@v["TenHanhKhach"]</div>
+                            </div>
+
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <div class="small text-muted">Từ / From:</div>
+                                    <div class="fw-bold text-uppercase" style="color:#173256;">@v["ThanhPhoDi"] (@v["MaSanBayDi"])</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="small text-muted">Đến / To:</div>
+                                    <div class="fw-bold text-uppercase" style="color:#173256;">@v["ThanhPhoDen"] (@v["MaSanBayDen"])</div>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 mb-3">
+                                <div class="col-4">
+                                    <div class="small text-muted">Chuyến bay / Flight:</div>
+                                    <div class="fs-4 fw-bold text-danger">@v["MaChuyenBay"]</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="small text-muted">Ngày / Date:</div>
+                                    <div class="fs-5 fw-bold text-dark">@gioBay.ToString("dd/MM/yyyy")</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="small text-muted">Giờ lên tàu / Boarding:</div>
+                                    <div class="fs-4 fw-bold text-danger">@boardingTime.ToString("HH:mm")</div>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 align-items-stretch">
+                                <div class="col-4">
+                                    <div class="border border-danger border-2 p-2 h-100 bg-danger-subtle bg-opacity-25">
+                                        <div class="small text-muted fw-semibold">CỬA / GATE</div>
+                                        <div class="fs-3 fw-bold text-danger">@gateNum</div>
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="small text-muted">MÃ VÉ / E-TICKET</div>
-                                        <div class="fs-5 fw-bold text-primary">@maVe</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="border border-danger border-2 p-2 h-100 bg-danger-subtle bg-opacity-25">
+                                        <div class="small text-muted fw-semibold">GHẾ / SEAT</div>
+                                        <div class="fs-3 fw-bold text-danger">@v["SoGhe"]</div>
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="small text-muted">TỪ / FROM</div>
-                                        <div class="fw-bold">@v["ThanhPhoDi"]</div>
-                                        <div class="small text-muted">@v["SanBayDi"]</div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="small text-muted">ĐẾN / TO</div>
-                                        <div class="fw-bold">@v["ThanhPhoDen"]</div>
-                                        <div class="small text-muted">@v["SanBayDen"]</div>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="small text-muted">CHUYẾN BAY</div>
-                                        <div class="fs-5 fw-bold text-danger">@v["MaChuyenBay"]</div>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="small text-muted">GIỜ LÊN TÀU</div>
-                                        <div class="fs-5 fw-bold text-danger">@boardingTime.ToString("HH:mm")</div>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="small text-muted">GHẾ / HẠNG</div>
-                                        <div class="fs-5 fw-bold text-success">@v["SoGhe"] <span class="fs-6 text-muted">(@v["TenHangGhe"])</span></div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="border p-2 h-100 bg-light">
+                                        <div class="fw-bold small" style="color:#173256;">HẠNG / CLASS: @v["MaHangGhe"]</div>
+                                        <div class="small fw-semibold text-break">MÃ VÉ: @maVe</div>
+                                        <div class="text-muted" style="font-size:0.72rem;">Cửa đóng 15p trước giờ bay</div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4 text-center">
-                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=BP_@maVe|@v["MaChuyenBay"]|SEAT_@v["SoGhe"]" alt="Boarding Pass QR" class="img-fluid mb-2 border p-2 rounded" />
-                                <div class="small fw-semibold">Cửa khởi hành: <span class="text-danger">GATE 14</span></div>
-                                <div class="text-muted" style="font-size: 0.75rem;">Cửa đóng 15 phút trước giờ cất cánh</div>
+                        </div>
+
+                        <!-- Phần Cuống vé bên phải -->
+                        <div class="col-md-4 p-4 d-flex flex-column justify-content-between overflow-hidden">
+                            <div>
+                                <div class="small">Hành khách: <strong class="text-uppercase">@v["TenHanhKhach"]</strong></div>
+                                <div class="small mt-1">Chuyến bay: <strong>@v["MaChuyenBay"]</strong> &nbsp;|&nbsp; @gioBay.ToString("dd/MM/yyyy")</div>
+                                <div class="small mt-1">Hành trình: <strong>@v["MaSanBayDi"] → @v["MaSanBayDen"]</strong></div>
+                                <div class="fw-bold text-danger mt-2">Cửa: @gateNum &nbsp;|&nbsp; Ghế: @v["SoGhe"] (@v["MaHangGhe"])</div>
+                            </div>
+
+                            <div class="border p-2 text-center mt-3 bg-white overflow-hidden">
+                                <div class="sky-barcode-bars mb-1" aria-label="Barcode @maVe">
+                                    <svg viewBox="0 0 @svgWidth 50" preserveAspectRatio="none" style="width:100%;height:50px;display:block;">
+                                        @foreach (var b in bars)
+                                        {
+                                            <rect x="@b.X" y="0" width="@b.W" height="50" fill="#111827" />
+                                        }
+                                    </svg>
+                                </div>
+                                <div class="small fw-bold font-monospace text-break">* @maVe *</div>
+                                <div class="mt-2">
+                                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=74x74&data=BP_@maVe|@v["MaChuyenBay"]|SEAT_@v["SoGhe"]" alt="QR @maVe" class="border p-1 rounded" width="74" height="74" />
+                                </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="bg-light px-4 py-2 border-top d-flex flex-wrap justify-content-between align-items-center gap-2 no-print">
+                        <span class="small text-muted">Mã vé điện tử: <strong>@maVe</strong> — @v["TenHangGhe"]</span>
+                        <button type="button" onclick="printSingleBoardingPass('bp_@safeId')" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold">
+                            <i class="bi bi-printer me-1"></i>In / Xuất PDF Thẻ này
+                        </button>
                     </div>
                 </div>
             }
             else
             {
-                <div class="card card-modern p-4 mb-3">
+                <div class="card card-modern p-4 mb-3 no-print">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                         <div>
                             <span class="badge bg-dark me-1">@maVe</span>
@@ -117,7 +213,7 @@
                                 <input type="hidden" name="maDatCho" value="@v["MaDatCho"]" />
                                 <input type="hidden" name="tenHanhKhach" value="@Context.Request.Query["tenHanhKhach"]" />
                                 <button type="submit" class="btn btn-success rounded-pill px-4">
-                                    <i class="bi bi-check2-circle me-1"></i>Xác nhận Check-in & In thẻ
+                                    <i class="bi bi-check2-circle me-1"></i>Xác nhận Check-in &amp; Nhận thẻ
                                 </button>
                             </form>
                         }
@@ -127,3 +223,14 @@
         }
     }
 </div>
+
+<script>
+    function printSingleBoardingPass(id) {
+        const all = document.querySelectorAll('.boarding-pass-card');
+        all.forEach(el => {
+            if (el.id !== id) el.classList.add('d-none-when-printing');
+        });
+        window.print();
+        setTimeout(() => all.forEach(el => el.classList.remove('d-none-when-printing')), 300);
+    }
+</script>

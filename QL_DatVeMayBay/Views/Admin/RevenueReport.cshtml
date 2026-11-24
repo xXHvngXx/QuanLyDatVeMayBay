@@ -1,0 +1,134 @@
+@using System.Data
+@{
+    ViewData["Title"] = "Báo cáo Thống kê Doanh thu Quản trị";
+    var dtHang = ViewBag.DoanhThuTheoHang as DataTable;
+    var dtTuyen = ViewBag.TopTuyenBay as DataTable;
+    int? thang = ViewBag.Thang as int?;
+    int? nam = ViewBag.Nam as int?;
+
+    long tongVe = 0;
+    decimal tongDoanhThu = 0;
+    if (dtHang != null)
+    {
+        foreach (DataRow r in dtHang.Rows)
+        {
+            tongVe += Convert.ToInt64(r["TongSoVeDaBan"]);
+            tongDoanhThu += Convert.ToDecimal(r["TongDoanhThuVe"]);
+        }
+    }
+    string kyBaoCao = (thang.HasValue && nam.HasValue)
+        ? $"Tháng {thang.Value:D2} / Năm {nam.Value}"
+        : $"Toàn kỳ hoạt động (Tính đến {DateTime.Now:dd/MM/yyyy})";
+}
+
+<div class="container my-4">
+    <!-- Toolbar điều khiển in & lọc kỳ báo cáo -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print" style="max-width:920px;margin:0 auto;">
+        <a asp-action="Dashboard" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <i class="bi bi-arrow-left me-1"></i>Quay lại Dashboard
+        </a>
+
+        <form method="get" asp-action="RevenueReport" class="d-flex align-items-center gap-2">
+            <select name="thang" class="form-select form-select-sm" style="width:120px;">
+                <option value="">Tất cả tháng</option>
+                @for (int m = 1; m <= 12; m++)
+                {
+                    <option value="@m" selected="@(thang == m)">Tháng @m.ToString("D2")</option>
+                }
+            </select>
+            <input type="number" name="nam" class="form-control form-control-sm" style="width:95px;" value="@(nam ?? DateTime.Now.Year)" placeholder="Năm" />
+            <button type="submit" class="btn btn-outline-primary btn-sm rounded-pill px-3">Lọc kỳ</button>
+            <a asp-action="RevenueReport" class="btn btn-outline-dark btn-sm rounded-pill px-3">Toàn kỳ</a>
+        </form>
+
+        <button type="button" onclick="window.print()" class="btn btn-danger btn-sm rounded-pill px-4 fw-bold">
+            <i class="bi bi-printer-fill me-1"></i>In / Xuất file PDF Báo cáo
+        </button>
+    </div>
+
+    <!-- BIỂU MẪU 6 (HÌNH 1.7): BÁO CÁO DOANH THU QUẢN TRỊ ĐẠI LÝ -->
+    <div class="sky-form-sheet p-4 p-md-5">
+        <div class="fw-bold small mb-2" style="color:#173256;">
+            HỆ THỐNG QUẢN LÝ ĐẶT VÉ MÁY BAY - BÁO CÁO QUẢN TRỊ (CRYSTAL REPORTS)
+        </div>
+        <div class="text-center pb-3 mb-4" style="border-bottom: 3px solid #173256;">
+            <h3 class="fw-bold text-danger mb-1">BÁO CÁO DOANH THU THEO HÃNG VÀ TUYẾN BAY</h3>
+            <div class="fw-bold text-dark small">Kỳ báo cáo: @kyBaoCao</div>
+        </div>
+
+        <table class="table table-bordered align-middle small mb-4">
+            <thead style="background:#f8fafc;color:#173256;">
+                <tr>
+                    <th class="py-2">MÃ HÃNG</th>
+                    <th class="py-2">TÊN HÃNG HÀNG KHÔNG</th>
+                    <th class="text-center py-2">SỐ VÉ ĐÃ BÁN</th>
+                    <th class="text-end py-2">TỔNG DOANH THU (VNĐ)</th>
+                    <th class="text-end py-2">TỶ TRỌNG (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (dtHang != null)
+                {
+                    foreach (DataRow r in dtHang.Rows)
+                    {
+                        long soVe = Convert.ToInt64(r["TongSoVeDaBan"]);
+                        decimal dt = Convert.ToDecimal(r["TongDoanhThuVe"]);
+                        decimal tyTrong = tongDoanhThu > 0 ? Math.Round(dt * 100m / tongDoanhThu, 1) : 0m;
+                        <tr>
+                            <td class="fw-bold">@r["MaHang"]</td>
+                            <td>@r["TenHang"]</td>
+                            <td class="text-center">@soVe vé</td>
+                            <td class="text-end fw-semibold">@dt.ToString("N0")</td>
+                            <td class="text-end">@tyTrong.ToString("0.0") %</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+            <tfoot>
+                <tr style="background:#fff1f2;">
+                    <td colspan="2" class="fw-bold text-danger fs-6">TỔNG CỘNG ĐẠI LÝ:</td>
+                    <td class="text-center fw-bold text-danger fs-6">@tongVe vé</td>
+                    <td class="text-end fw-bold text-danger fs-6">@tongDoanhThu.ToString("N0") VNĐ</td>
+                    <td class="text-end fw-bold text-danger fs-6">100.0 %</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        @if (dtTuyen != null && dtTuyen.Rows.Count > 0)
+        {
+            <div class="fw-bold small mb-2" style="color:#173256;">CHI TIẾT TOP TUYẾN BAY NỘI ĐỊA TRỌNG ĐIỂM:</div>
+            <table class="table table-sm table-bordered align-middle small mb-4">
+                <thead class="table-light">
+                    <tr>
+                        <th>MÃ TUYẾN</th>
+                        <th>CHẶNG BAY</th>
+                        <th class="text-center">SỐ LƯỢNG VÉ</th>
+                        <th class="text-end">DOANH THU (VNĐ)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (DataRow t in dtTuyen.Rows)
+                    {
+                        <tr>
+                            <td class="fw-bold">@t["MaTuyenBay"]</td>
+                            <td>@t["ChangBay"]</td>
+                            <td class="text-center">@t["SoLuongVeBan"]</td>
+                            <td class="text-end fw-semibold">@Convert.ToDecimal(t["TongDoanhThu"]).ToString("N0") VNĐ</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <div class="row pt-3 small">
+            <div class="col-6">
+                <div class="fw-bold text-dark">Người lập biểu:</div>
+                <div class="text-muted mt-1">@ViewBag.NguoiLap (@ViewBag.VaiTro)</div>
+            </div>
+            <div class="col-6 text-end">
+                <div class="fw-bold text-dark">Ban Giám Đốc / Kế Toán Trưởng:</div>
+                <div class="text-success fw-bold mt-1">Ban Điều Hành SkyVN Air (Đã duyệt)</div>
+            </div>
+        </div>
+    </div>
+</div>

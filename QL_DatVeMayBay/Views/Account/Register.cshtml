@@ -1,5 +1,8 @@
 ﻿@{
     ViewData["Title"] = "Đăng ký tài khoản hành khách";
+    string f(string key, string fallback = "") => Context.Request.HasFormContentType ? (Context.Request.Form[key].ToString() ?? fallback) : fallback;
+    string curLoaiKH = f("loaiKhachHang", "Việt Nam");
+    string curLoaiGT = f("loaiGiayTo", "CCCD");
 }
 
 <div class="container my-5">
@@ -7,70 +10,78 @@
         <div class="col-md-8 col-lg-7">
             <div class="card card-modern p-4 p-md-5">
                 <h4 class="fw-bold mb-1">Đăng ký thành viên SkyVN Airlines</h4>
-                <p class="text-muted small mb-4">Hỗ trợ công dân Việt Nam (CCCD) và du khách quốc tế (Hộ chiếu)</p>
+                <p class="text-muted small mb-4">Chỉ cần nhập 1 trong 3 loại giấy tờ định danh: <strong>CCCD</strong>, <strong>Hộ chiếu</strong> (khách nước ngoài/xuất ngoại) hoặc <strong>Giấy khai sinh</strong> (trẻ em).</p>
 
                 @if (ViewBag.Error != null)
                 {
-                    <div class="alert alert-danger small">@ViewBag.Error</div>
+                    <div class="alert alert-danger small fw-semibold">@ViewBag.Error</div>
                 }
 
                 <form method="post" asp-action="Register">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Họ và tên *</label>
-                            <input type="text" name="tenKH" class="form-control" required />
+                            <input type="text" name="tenKH" class="form-control" value="@f("tenKH")" required />
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-semibold">Giới tính *</label>
                             <select name="gioiTinh" class="form-select">
-                                <option value="Nam">Nam</option>
-                                <option value="Nữ">Nữ</option>
-                                <option value="Khác">Khác</option>
+                                <option value="Nam" selected="@(f("gioiTinh", "Nam") == "Nam")">Nam</option>
+                                <option value="Nữ" selected="@(f("gioiTinh") == "Nữ")">Nữ</option>
+                                <option value="Khác" selected="@(f("gioiTinh") == "Khác")">Khác</option>
                             </select>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-semibold">Ngày sinh *</label>
-                            <input type="date" name="ngaySinh" class="form-control" value="2004-01-01" required />
+                            <input type="date" name="ngaySinh" class="form-control" value="@f("ngaySinh", "2004-01-01")" required />
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Số điện thoại *</label>
-                            <input type="text" name="sdt" class="form-control" required />
+                            <input type="text" name="sdt" class="form-control" value="@f("sdt")" required />
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Email *</label>
-                            <input type="email" name="email" class="form-control" required />
+                            <input type="email" name="email" class="form-control" value="@f("email")" required />
                         </div>
 
                         <div class="col-md-4">
                             <label class="form-label small fw-semibold">Đối tượng khách *</label>
-                            <select name="loaiKhachHang" class="form-select">
-                                <option value="Việt Nam">Việt Nam</option>
-                                <option value="Nước ngoài">Nước ngoài</option>
-                                <option value="Doanh nghiệp">Doanh nghiệp</option>
+                            <select name="loaiKhachHang" id="regCustomerType" class="form-select" onchange="onRegCustomerTypeChange()">
+                                <option value="Việt Nam" selected="@(curLoaiKH == "Việt Nam")">Việt Nam</option>
+                                <option value="Nước ngoài" selected="@(curLoaiKH == "Nước ngoài")">Nước ngoài</option>
+                                <option value="Doanh nghiệp" selected="@(curLoaiKH == "Doanh nghiệp")">Doanh nghiệp</option>
                             </select>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Số CCCD (VN)</label>
-                            <input type="text" name="cccd" class="form-control" placeholder="12 số CCCD" />
+                            <label class="form-label small fw-semibold">Loại giấy tờ định danh *</label>
+                            <select name="loaiGiayTo" id="regDocType" class="form-select" onchange="onRegDocTypeChange()">
+                                <option value="CCCD" selected="@(curLoaiGT == "CCCD")">CCCD (12 số)</option>
+                                <option value="Hộ chiếu" selected="@(curLoaiGT == "Hộ chiếu")">Hộ chiếu (Passport)</option>
+                                <option value="Giấy khai sinh" selected="@(curLoaiGT == "Giấy khai sinh")">Giấy khai sinh (Trẻ em)</option>
+                            </select>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Số Hộ chiếu (Quốc tế)</label>
-                            <input type="text" name="hoChieu" class="form-control" placeholder="Passport No." />
+                            <label class="form-label small fw-semibold" id="regDocLabel">Số CCCD *</label>
+                            <input type="text" name="soGiayTo" id="regDocInput" class="form-control" value="@f("soGiayTo")" placeholder="12 chữ số CCCD" required />
                         </div>
 
+                        <div class="col-md-4" id="regPassportExpiryWrap" style="display:@(curLoaiGT == "Hộ chiếu" ? "block" : "none");">
+                            <label class="form-label small fw-semibold">Hạn Hộ chiếu (nếu có)</label>
+                            <input type="date" name="hanHoChieu" class="form-control" value="@f("hanHoChieu")" />
+                        </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-semibold">Quốc tịch</label>
-                            <input type="text" name="quocTich" class="form-control" value="Việt Nam" />
+                            <input type="text" name="quocTich" id="regNationality" class="form-control" value="@f("quocTich", "Việt Nam")" />
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-md-4">
                             <label class="form-label small fw-semibold">Địa chỉ liên hệ</label>
-                            <input type="text" name="diaChi" class="form-control" />
+                            <input type="text" name="diaChi" class="form-control" value="@f("diaChi")" />
                         </div>
 
                         <div class="col-12">
                             <label class="form-label small fw-semibold">Mật khẩu *</label>
-                            <input type="password" name="matKhau" class="form-control" required />
+                            <input type="password" name="matKhau" class="form-control" minlength="6" placeholder="Tối thiểu 6 ký tự" required />
                         </div>
                     </div>
 
@@ -80,3 +91,39 @@
         </div>
     </div>
 </div>
+
+<script>
+    function onRegCustomerTypeChange() {
+        const type = document.getElementById('regCustomerType').value;
+        const docType = document.getElementById('regDocType');
+        const nat = document.getElementById('regNationality');
+        if (type === 'Nước ngoài') {
+            docType.value = 'Hộ chiếu';
+            if (nat.value === 'Việt Nam') nat.value = '';
+        } else if (nat.value === '') {
+            nat.value = 'Việt Nam';
+        }
+        onRegDocTypeChange();
+    }
+
+    function onRegDocTypeChange() {
+        const dt = document.getElementById('regDocType').value;
+        const lbl = document.getElementById('regDocLabel');
+        const inp = document.getElementById('regDocInput');
+        const exp = document.getElementById('regPassportExpiryWrap');
+        if (dt === 'Hộ chiếu') {
+            lbl.textContent = 'Số Hộ chiếu *';
+            inp.placeholder = 'VD: B1234567 hoặc K889900';
+            exp.style.display = 'block';
+        } else if (dt === 'Giấy khai sinh') {
+            lbl.textContent = 'Số Giấy khai sinh *';
+            inp.placeholder = 'VD: KS2018-001 (trẻ em chưa có CCCD)';
+            exp.style.display = 'none';
+        } else {
+            lbl.textContent = 'Số CCCD *';
+            inp.placeholder = 'Nhập 12 chữ số CCCD';
+            exp.style.display = 'none';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', onRegDocTypeChange);
+</script>

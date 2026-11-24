@@ -5,8 +5,9 @@ using QL_DatVeMayBay.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
-builder.Services.AddSignalR(); 
-builder.Services.AddHostedService<SeatHoldCleanupService>(); 
+builder.Services.AddSignalR();
+builder.Services.AddScoped<IPaymentGateway, SandboxPaymentGateway>();
+builder.Services.AddHostedService<SeatHoldCleanupService>();
 
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>

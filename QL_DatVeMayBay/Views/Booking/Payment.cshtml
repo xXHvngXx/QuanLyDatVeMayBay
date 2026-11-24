@@ -1,72 +1,304 @@
-﻿@{
-    ViewData["Title"] = "Thanh Toán Online";
-    var donDi = ViewBag.DonDi as Dictionary<string, object>;
-    var donVe = ViewBag.DonVe as Dictionary<string, object>;
+﻿@using System.Data
+@using QL_DatVeMayBay.Services
+@{
+    ViewData["Title"] = "Thanh toán Chuyển khoản Ngân hàng (VietQR)";
+    var don = ViewBag.DonDi as Dictionary<string, object>;
+    var txn = ViewBag.Txn as PaymentInitiationResult;
+    var dtVe = ViewBag.DanhSachVe as DataTable;
+    int remainingSec = ViewBag.RemainingSeconds ?? 0;
+    string txnStatus = ViewBag.TransactionStatus ?? "Chờ thanh toán";
+    string? proofUrl = ViewBag.ProofUrl as string;
+    DateTime? proofTime = ViewBag.ProofTime as DateTime?;
+    string? rejectReason = ViewBag.RejectReason as string;
     decimal tongTien = ViewBag.TongThanhToan;
-    DateTime hanTT = Convert.ToDateTime(donDi!["HanThanhToan"]);
+    bool isPendingApproval = txnStatus == "Chờ duyệt";
 }
 
-<div class="container py-5" style="max-width: 720px;">
+<div class="container py-4" style="max-width: 820px;">
+    <!-- STEP BAR -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 p-3 bg-white">
+        <div class="d-flex flex-wrap justify-content-around align-items-center gap-2 small fw-semibold">
+            <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>1. Chọn chuyến bay</span>
+            <i class="bi bi-chevron-right text-muted"></i>
+            <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>2. Hành khách &amp; Chỗ ngồi</span>
+            <i class="bi bi-chevron-right text-muted"></i>
+            <span class="text-danger"><span class="badge bg-danger rounded-pill me-1">3</span>Chuyển khoản &amp; Gửi xác nhận</span>
+            <i class="bi bi-chevron-right text-muted"></i>
+            <span class="@(txnStatus == "Thành công" ? "text-success" : "text-muted")">4. Admin duyệt &amp; Xuất vé</span>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success rounded-4 fw-semibold">@TempData["Success"]</div>
+    }
+    @if (TempData["Info"] != null)
+    {
+        <div class="alert alert-info rounded-4 fw-semibold">@TempData["Info"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger rounded-4 fw-bold">@TempData["Error"]</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(rejectReason))
+    {
+        <div class="alert alert-danger rounded-4">
+            <div class="fw-bold"><i class="bi bi-exclamation-octagon-fill me-1"></i>Minh chứng trước đó bị từ chối:</div>
+            <div class="small mt-1">@rejectReason — Vui lòng chuyển khoản đúng số tiền/nội dung và tải lại ảnh xác nhận rõ nét.</div>
+        </div>
+    }
+
     <div class="card shadow-lg border-0 rounded-4 overflow-hidden">
-        <div class="card-header bg-dark text-white p-4 d-flex justify-content-between align-items-center">
+        <div class="card-header text-white p-4 d-flex justify-content-between align-items-center flex-wrap gap-2"
+             style="background: linear-gradient(135deg, #0f172a, #1e293b);">
             <div>
-                <h5 class="mb-0 fw-bold">THANH TOÁN ĐẶT VÉ TRỰC TUYẾN</h5>
-                <small>Mã đặt chỗ: <strong class="text-warning">@donDi["MaDatCho"]</strong> @(donVe != null ? $" & {donVe["MaDatCho"]} (Khứ hồi)" : "")</small>
+                <span class="badge bg-info text-dark mb-1">@(txn!.LoaiGiaoDich == "DICH_VU" ? "THANH TOÁN DỊCH VỤ BỔ SUNG" : "THANH TOÁN VÉ MÁY BAY")</span>
+                <h5 class="mb-0 fw-bold">MÃ ĐẶT CHỖ (PNR): <span class="text-warning">@don!["MaDatCho"]</span></h5>
+                <small class="opacity-75">Mã GD: <code>@txn.MaGiaoDich</code> • Hành trình: @don["LoaiHanhTrinh"]</small>
             </div>
-            <div class="badge bg-danger fs-6 px-3 py-2" id="countdownBadge">⏳ 15:00</div>
+            @if (isPendingApproval)
+            {
+                <div class="badge bg-warning text-dark fs-6 px-3 py-2">⏳ Đang chờ Admin duyệt</div>
+            }
+            else
+            {
+                <div class="badge bg-danger fs-5 px-3 py-2" id="countdownBadge">⏳ --:--</div>
+            }
         </div>
 
-        <form method="post" asp-action="ConfirmOnlinePayment" class="card-body p-4">
-            <input type="hidden" name="maDatCho" value="@donDi["MaDatCho"]" />
-            @if (donVe != null)
+        <div class="card-body p-4 bg-white">
+            @if (dtVe != null && dtVe.Rows.Count > 0)
             {
-                <input type="hidden" name="maDatChoVe" value="@donVe["MaDatCho"]" />
+                <div class="border rounded-3 p-3 mb-3 bg-light small">
+                    <div class="fw-bold mb-1">Tóm tắt hành trình &amp; hành khách trong PNR @don["MaDatCho"]:</div>
+                    @foreach (DataRow r in dtVe.Rows)
+                    {
+                        <div>
+                            <span class="badge bg-dark me-1">@r["MaVe"]</span>
+                            <strong>@r["TenHanhKhach"]</strong> (@r["LoaiHanhKhach"]) •
+                            Chặng @r["ThuTuChang"] (@(r["HuongBay"].ToString() == "VE" ? "Lượt về" : "Lượt đi")):
+                            <strong>@r["MaChuyenBay"]</strong> (@r["MaSanBayDi"] → @r["MaSanBayDen"]) •
+                            Ghế: <strong class="text-danger">@r["SoGhe"]</strong>
+                        </div>
+                    }
+                </div>
             }
 
-            <div class="alert alert-warning small">
-                Nếu quá <strong>15 phút</strong> chưa hoàn tất chuyển khoản, giao dịch sẽ tự động hủy và trả ghế về trạng thái trống cho hành khách khác.
+            <div class="p-3 rounded-4 mb-4 d-flex justify-content-between align-items-center" style="background:#fef2f2; border: 1px solid #fecaca;">
+                <div>
+                    <div class="fw-bold text-dark">Tổng số tiền cần chuyển khoản:</div>
+                    <small class="text-muted">Bằng chữ: <em>@VietnameseCurrencyHelper.NumberToVietnameseWords(tongTien)</em></small>
+                </div>
+                <span class="fs-3 fw-bold text-danger">@tongTien.ToString("N0") VNĐ</span>
             </div>
 
-            <div class="p-3 bg-light rounded-3 mb-4 d-flex justify-content-between align-items-center">
-                <span class="fw-bold">Tổng thanh toán (Vé + Dịch vụ):</span>
-                <span class="fs-4 fw-bold text-danger">@tongTien.ToString("N0") VNĐ</span>
+            <!-- PHƯƠNG THỨC DUY NHẤT: CHUYỂN KHOẢN NGÂN HÀNG (VIETQR) -->
+            <div class="border rounded-4 p-4 mb-4 bg-light">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                    <div class="fw-bold text-primary fs-6">
+                        <i class="bi bi-bank2 me-2"></i>Chuyển khoản ngân hàng (Quét mã VietQR 24/7)
+                    </div>
+                    <span class="badge bg-success-subtle text-success border border-success">Mặc định duy nhất</span>
+                </div>
+
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-5 text-center">
+                        <img src="@txn.QrImageUrl"
+                             onerror="this.style.display='none'; document.getElementById('offlineQrSvg').classList.remove('d-none');"
+                             alt="VietQR" class="rounded-3 border bg-white p-2 img-fluid" style="max-width:220px;" />
+                        <div id="offlineQrSvg" class="d-none mx-auto bg-white p-3 rounded border" style="max-width:220px;">
+                            <svg viewBox="0 0 120 120" width="160" height="160">
+                                <rect width="120" height="120" fill="#fff"/>
+                                <rect x="8" y="8" width="28" height="28" fill="#0f172a"/><rect x="13" y="13" width="18" height="18" fill="#fff"/><rect x="17" y="17" width="10" height="10" fill="#0f172a"/>
+                                <rect x="84" y="8" width="28" height="28" fill="#0f172a"/><rect x="89" y="13" width="18" height="18" fill="#fff"/><rect x="93" y="17" width="10" height="10" fill="#0f172a"/>
+                                <rect x="8" y="84" width="28" height="28" fill="#0f172a"/><rect x="13" y="89" width="18" height="18" fill="#fff"/><rect x="17" y="93" width="10" height="10" fill="#0f172a"/>
+                                <path d="M44,10 h12 v12 h-12z M62,16 h10 v18 h-10z M44,34 h28 v10 h-28z M14,48 h18 v12 h-18z M48,50 h16 v16 h-16z M76,48 h32 v12 h-32z M44,74 h22 v12 h-22z M78,76 h26 v26 h-26z" fill="#0f172a"/>
+                            </svg>
+                            <div class="small text-muted">VietQR Local Fallback</div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-7 small">
+                        <div class="bg-white border rounded-3 p-3 lh-lg">
+                            <div>Ngân hàng thụ hưởng: <strong>MB Bank (Ngân hàng Quân Đội)</strong></div>
+                            <div>Chủ tài khoản: <strong>CONG TY HANG KHONG SKYVN AIR</strong></div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span>Số tài khoản: <strong class="text-danger fs-6">0901234567</strong></span>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="copyText('0901234567', this)">Copy STK</button>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span>Nội dung CK: <code class="fs-6 fw-bold text-primary">@txn.NoiDungCK</code></span>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="copyText('@txn.NoiDungCK', this)">Copy Nội dung</button>
+                            </div>
+                            <div>Số tiền chính xác: <strong class="text-danger">@tongTien.ToString("N0") VNĐ</strong></div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <label class="form-label fw-bold">Chọn hình thức thanh toán Online:</label>
-            <select name="phuongThuc" class="form-select form-select-lg mb-4" id="payMethodSelect" onchange="toggleQR(this.value)">
-                <option value="Chuyển khoản ngân hàng (VietQR)">Chuyển khoản ngân hàng (Quét mã VietQR)</option>
-                <option value="Ví MoMo">Ví điện tử MoMo</option>
-                <option value="Ví ZaloPay">Ví điện tử ZaloPay</option>
-                <option value="Thẻ ATM nội địa">Thẻ ATM nội địa / Internet Banking</option>
-                <option value="VISA/MasterCard">Thẻ quốc tế VISA / MasterCard</option>
-            </select>
+            @if (isPendingApproval)
+            {
+                <!-- TRẠNG THÁI CHỜ ADMIN / THU NGÂN DUYỆT -->
+                <div class="border border-warning rounded-4 p-4 bg-warning-subtle bg-opacity-25">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                        <h5 class="fw-bold text-dark mb-0">
+                            <i class="bi bi-hourglass-split text-warning me-2"></i>Đã gửi ảnh xác nhận — Đang chờ Admin duyệt
+                        </h5>
+                        <span class="badge bg-primary" id="dbTxnStatus">@txnStatus</span>
+                    </div>
+                    <p class="small text-muted mb-3">
+                        Hồ sơ PNR <strong>@txn.MaDatCho</strong> đã được giữ chỗ an toàn (không bị hủy sau 15 phút) trong thời gian Admin / Thu ngân đối soát giao dịch chuyển khoản. Trang sẽ tự động chuyển ngay khi được duyệt.
+                    </p>
 
-            <div id="vietQrBox" class="text-center border rounded-4 p-3 mb-4 bg-white">
-                <p class="fw-bold mb-2">Quét mã VietQR để chuyển khoản nhanh</p>
-                <img src="https://img.vietqr.io/image/MB-0901234567-compact2.png?amount=@((long)tongTien)&addInfo=@donDi["MaDatCho"]" alt="VietQR" style="max-width:220px;" />
-                <div class="small text-muted mt-2">Nội dung CK: <strong>@donDi["MaDatCho"]</strong></div>
-            </div>
+                    @if (!string.IsNullOrEmpty(proofUrl))
+                    {
+                        <div class="bg-white border rounded-3 p-3 text-center mb-3">
+                            <div class="small fw-bold text-secondary mb-2">
+                                Ảnh xác nhận bạn đã gửi @(proofTime.HasValue ? $"lúc {proofTime.Value:HH:mm dd/MM/yyyy}" : "")
+                            </div>
+                            <img src="@proofUrl" alt="Ảnh xác nhận chuyển khoản" class="img-fluid rounded border shadow-sm" style="max-height: 320px;" />
+                        </div>
+                    }
 
-            <button type="submit" class="btn btn-success btn-lg w-100 fw-bold">✔ Tôi đã thanh toán chuyển khoản</button>
-        </form>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <a asp-controller="Booking" asp-action="Lookup" asp-route-maDatCho="@txn.MaDatCho" class="btn btn-outline-dark btn-sm rounded-pill px-3 fw-semibold">
+                            <i class="bi bi-search me-1"></i>Xem trạng thái hồ sơ PNR
+                        </a>
+                        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" data-bs-toggle="collapse" data-bs-target="#reuploadProofBox">
+                            Gửi lại ảnh xác nhận khác
+                        </button>
+                    </div>
+
+                    <div class="collapse mt-3" id="reuploadProofBox">
+                        <form method="post" asp-controller="Payment" asp-action="UploadProof" enctype="multipart/form-data" class="card card-body border-primary">
+                            <input type="hidden" name="maGiaoDich" value="@txn.MaGiaoDich" />
+                            <input type="hidden" name="maDatCho" value="@txn.MaDatCho" />
+                            <input type="hidden" name="loaiGiaoDich" value="@txn.LoaiGiaoDich" />
+                            <input type="hidden" name="soTien" value="@((long)Math.Round(txn.SoTien, 0))" />
+                            <input type="hidden" name="signature" value="@txn.Signature" />
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold">Chọn ảnh xác nhận chuyển khoản mới (JPG/PNG/WEBP ≤ 5MB) *</label>
+                                <input type="file" name="proofImage" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp" required />
+                            </div>
+                            <div class="mb-2">
+                                <input type="text" name="ghiChu" class="form-control form-control-sm" placeholder="Ghi chú thêm (VD: Chuyển lại từ STK...)" />
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm fw-bold">Cập nhật ảnh xác nhận</button>
+                        </form>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- FORM TẢI ẢNH XÁC NHẬN CHUYỂN KHOẢN -->
+                <form method="post" asp-controller="Payment" asp-action="UploadProof" enctype="multipart/form-data" id="proofUploadForm" class="border border-primary rounded-4 p-4 bg-primary-subtle bg-opacity-25">
+                    <input type="hidden" name="maGiaoDich" value="@txn.MaGiaoDich" />
+                    <input type="hidden" name="maDatCho" value="@txn.MaDatCho" />
+                    <input type="hidden" name="loaiGiaoDich" value="@txn.LoaiGiaoDich" />
+                    <input type="hidden" name="soTien" value="@((long)Math.Round(txn.SoTien, 0))" />
+                    <input type="hidden" name="signature" value="@txn.Signature" />
+
+                    <h6 class="fw-bold text-primary mb-2">
+                        <i class="bi bi-cloud-arrow-up-fill me-2"></i>Bước tiếp theo: Gửi ảnh xác nhận chuyển khoản để Admin duyệt
+                    </h6>
+                    <p class="small text-muted mb-3">
+                        Sau khi quét mã VietQR và chuyển khoản thành công, vui lòng chụp màn hình biên lai giao dịch và tải lên bên dưới. Admin / Thu ngân sẽ duyệt để xuất vé điện tử &amp; mở Check-in / Xuất Hóa đơn VAT cho bạn.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Ảnh biên lai / Xác nhận chuyển khoản (JPG, PNG, WEBP ≤ 5MB) *</label>
+                        <input type="file" name="proofImage" id="proofImageInput" class="form-control" accept=".jpg,.jpeg,.png,.webp" onchange="previewProofImage(this)" required />
+                    </div>
+
+                    <div id="proofPreviewWrap" class="d-none mb-3 text-center bg-white border rounded-3 p-3">
+                        <div class="small text-muted mb-1">Xem trước ảnh xác nhận chuyển khoản:</div>
+                        <img id="proofPreviewImg" src="#" alt="Preview" class="img-fluid rounded border" style="max-height: 240px;" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Ghi chú giao dịch (tùy chọn)</label>
+                        <input type="text" name="ghiChu" class="form-control" placeholder="VD: Đã chuyển khoản từ MB Bank lúc 14:55..." />
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg fw-bold rounded-pill shadow-sm">
+                            <i class="bi bi-send-check-fill me-2"></i>Gửi ảnh xác nhận chuyển khoản &amp; Chờ Admin duyệt
+                        </button>
+                    </div>
+                    <div class="small text-muted mt-2 text-center">
+                        Trạng thái hiện tại trong DB: <strong id="dbTxnStatus">@txnStatus</strong>
+                    </div>
+                </form>
+            }
+        </div>
     </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
 <script>
-    function toggleQR(val) {
-        document.getElementById('vietQrBox').style.display = val.includes('VietQR') ? 'block' : 'none';
-    }
+    const isPendingApproval = @(isPendingApproval ? "true" : "false");
+    let remain = @remainingSec;
+    const badge = document.getElementById('countdownBadge');
 
-    const expireTime = new Date("@hanTT.ToString("yyyy-MM-ddTHH:mm:ss")").getTime();
-    setInterval(() => {
-        const diff = Math.floor((expireTime - Date.now()) / 1000);
-        if (diff <= 0) {
-            alert("Đã hết 15 phút giữ ghế! Giao dịch đã tự động hủy và nhả ghế.");
-            window.location.href = "/Home/Index";
+    function renderCountdown() {
+        if (!badge) return;
+        if (remain <= 0) {
+            badge.textContent = "⏳ 00:00 (Hết hạn)";
             return;
         }
-        const m = String(Math.floor(diff / 60)).padStart(2, '0');
-        const s = String(diff % 60).padStart(2, '0');
-        document.getElementById('countdownBadge').textContent = `⏳ ${m}:${s}`;
-    }, 1000);
+        const m = String(Math.floor(remain / 60)).padStart(2, '0');
+        const s = String(remain % 60).padStart(2, '0');
+        badge.textContent = `⏳ ${m}:${s}`;
+        remain--;
+    }
+
+    if (!isPendingApproval && badge) {
+        renderCountdown();
+        const timer = setInterval(() => {
+            if (remain <= 0) {
+                clearInterval(timer);
+                alert("Đã hết 15 phút giữ ghế! Hệ thống sẽ tự động hủy giữ chỗ và trả ghế trống.");
+                window.location.href = "/Home/Index";
+                return;
+            }
+            renderCountdown();
+        }, 1000);
+    }
+
+    function copyText(txt, btn) {
+        navigator.clipboard?.writeText(txt);
+        const orig = btn.textContent;
+        btn.textContent = "Đã copy ✓";
+        setTimeout(() => btn.textContent = orig, 1400);
+    }
+
+    function previewProofImage(inp) {
+        const wrap = document.getElementById('proofPreviewWrap');
+        const img = document.getElementById('proofPreviewImg');
+        if (inp.files && inp.files[0]) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                img.src = e.target.result;
+                wrap.classList.remove('d-none');
+            };
+            reader.readAsDataURL(inp.files[0]);
+        } else {
+            wrap.classList.add('d-none');
+        }
+    }
+
+    const payConn = new signalR.HubConnectionBuilder().withUrl("/seatHub").withAutomaticReconnect().build();
+    payConn.on("PaymentStatusUpdated", function (d) {
+        const stEl = document.getElementById('dbTxnStatus');
+        if (stEl) stEl.textContent = d.status;
+        if (d.status === "Thành công") {
+            window.location.href = "/Booking/Lookup?maDatCho=@txn.MaDatCho";
+        } else if (d.status === "Từ chối" || d.status === "Hết hạn giữ chỗ") {
+            alert(d.message);
+            window.location.href = d.status === "Từ chối"
+                ? "/Booking/Payment?maDatCho=@txn.MaDatCho&maGD=@txn.MaGiaoDich"
+                : "/Home/Index";
+        }
+    });
+    payConn.start().then(() => payConn.invoke("JoinBookingPaymentRoom", "@txn.MaDatCho"));
 </script>

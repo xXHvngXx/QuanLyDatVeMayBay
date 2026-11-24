@@ -1,0 +1,191 @@
+@{
+    ViewData["Title"] = "Bước 2: Thông tin Hành khách";
+    var legs = ViewBag.Legs as List<Dictionary<string, object>> ?? new();
+    int nl = ViewBag.NguoiLon ?? 1;
+    int te = ViewBag.TreEm ?? 0;
+    int eb = ViewBag.EmBe ?? 0;
+    bool isIntl = ViewBag.IsInternational == true;
+    decimal estFare = ViewBag.EstimatedFareTotal ?? 0m;
+    decimal estTax = ViewBag.EstimatedTaxTotal ?? 0m;
+
+    var paxTypes = new List<string>();
+    for (int i = 0; i < nl; i++) paxTypes.Add("Người lớn");
+    for (int i = 0; i < te; i++) paxTypes.Add("Trẻ em");
+    for (int i = 0; i < eb; i++) paxTypes.Add("Em bé");
+}
+
+<div class="container py-4">
+    <!-- HEADER BƯỚC 2 KIỂU VIETJET -->
+    <div class="p-3 mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3 rounded-4 shadow-sm" style="background: linear-gradient(90deg, #facc15, #fde047);">
+        <div>
+            <div class="fw-bold small text-uppercase">BƯỚC 2 / 4: THÔNG TIN HÀNH KHÁCH</div>
+            <div class="fw-bold text-danger fs-5">
+                @(legs.First()["ThanhPhoDi"]) (@(legs.First()["MaSanBayDi"])) → @(legs.Last()["ThanhPhoDen"]) (@(legs.Last()["MaSanBayDen"]))
+                • Hạng @(ViewBag.HangGheDi)
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge rounded-circle bg-white text-success p-2"><i class="bi bi-check-lg"></i></span>
+            <span class="badge rounded-circle bg-success text-white p-2"><i class="bi bi-person-fill"></i></span>
+            <span class="badge rounded-circle bg-white text-secondary p-2"><i class="bi bi-cart-fill"></i></span>
+            <span class="badge rounded-circle bg-white text-secondary p-2"><i class="bi bi-qr-code"></i></span>
+        </div>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger fw-bold rounded-4">@TempData["Error"]</div>
+    }
+
+    <form method="post" asp-action="Passengers">
+        <input type="hidden" name="maChuyenBayDi" value="@ViewBag.MaChuyenBayDi" />
+        <input type="hidden" name="hangGheDi" value="@ViewBag.HangGheDi" />
+        <input type="hidden" name="maChuyenBayDi2" value="@ViewBag.MaChuyenBayDi2" />
+        <input type="hidden" name="maChuyenBayVe" value="@ViewBag.MaChuyenBayVe" />
+        <input type="hidden" name="hangGheVe" value="@ViewBag.HangGheVe" />
+        <input type="hidden" name="maChuyenBayVe2" value="@ViewBag.MaChuyenBayVe2" />
+        <input type="hidden" name="maKM" value="@ViewBag.MaKM" />
+
+        <div class="row g-4">
+            <div class="col-lg-8">
+                @for (int i = 0; i < paxTypes.Count; i++)
+                {
+                    string pType = paxTypes[i];
+                    bool isMinor = pType != "Người lớn";
+                    string defaultDob = pType == "Người lớn" ? "1998-05-15" : pType == "Trẻ em" ? "2018-06-01" : DateTime.Today.AddMonths(-10).ToString("yyyy-MM-dd");
+                    string initialDocType = isIntl ? "Hộ chiếu" : (isMinor ? "Giấy khai sinh" : "CCCD");
+                    string initialDocLabel = initialDocType == "Hộ chiếu" ? "Số Hộ chiếu *" : initialDocType == "Giấy khai sinh" ? "Số Giấy khai sinh *" : "Số CCCD *";
+                    string initialDocPlaceholder = initialDocType == "Hộ chiếu" ? "VD: C9123456 (6–12 ký tự)" : initialDocType == "Giấy khai sinh" ? "Số/Mã giấy khai sinh" : "12 chữ số CCCD";
+
+                    <div class="card border-0 shadow-sm rounded-4 p-4 mb-3 bg-white">
+                        <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                            <h6 class="fw-bold text-primary mb-0"><i class="bi bi-person-badge me-2"></i>Hành khách #@(i + 1): @pType</h6>
+                            <span class="badge bg-dark">@(pType == "Người lớn" ? "100% giá + thuế" : pType == "Trẻ em" ? "90% giá + thuế" : "10% giá cơ bản, 0đ thuế")</span>
+                        </div>
+                        <input type="hidden" name="passengers[@i].LoaiHanhKhach" value="@pType" />
+
+                        <div class="mb-2 d-flex gap-3 small">
+                            <label class="form-check-label"><input type="radio" name="passengers[@i].GioiTinh" value="Nam" class="form-check-input" checked /> Nam</label>
+                            <label class="form-check-label"><input type="radio" name="passengers[@i].GioiTinh" value="Nữ" class="form-check-input" /> Nữ</label>
+                            <label class="form-check-label"><input type="radio" name="passengers[@i].GioiTinh" value="Khác" class="form-check-input" /> Khác</label>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-5">
+                                <label class="form-label small fw-bold">Họ và tên (theo giấy tờ) *</label>
+                                <input type="text" name="passengers[@i].TenHanhKhach" class="form-control text-uppercase" required placeholder="VD: NGUYEN VAN AN" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Ngày sinh *</label>
+                                <input type="date" name="passengers[@i].NgaySinh" class="form-control" value="@defaultDob" max="@DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd")" required />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Quốc tịch *</label>
+                                <input type="text" name="passengers[@i].QuocTich" class="form-control" value="Việt Nam" required />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Loại giấy tờ *</label>
+                                <select name="passengers[@i].LoaiGiayTo" class="form-select" id="docType_@i" onchange="syncDocFields(@i)">
+                                    @if (isIntl)
+                                    {
+                                        <option value="Hộ chiếu" selected>Hộ chiếu (Passport)</option>
+                                    }
+                                    else if (!isMinor)
+                                    {
+                                        <option value="CCCD" selected>CCCD (12 số)</option>
+                                        <option value="Hộ chiếu">Hộ chiếu (Passport)</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="Giấy khai sinh" selected>Giấy khai sinh</option>
+                                        <option value="Hộ chiếu">Hộ chiếu (Passport)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold" id="docNumLbl_@i">@initialDocLabel</label>
+                                <input type="text" name="passengers[@i].SoGiayTo" id="docNumInput_@i" class="form-control text-uppercase" required placeholder="@initialDocPlaceholder" />
+                            </div>
+                            <div class="col-md-4" id="passportExpCol_@i" style="display:@(initialDocType == "Hộ chiếu" ? "block" : "none")">
+                                <label class="form-label small fw-bold">Ngày hết hạn Hộ chiếu *</label>
+                                <input type="date" name="passengers[@i].HanHoChieu" id="passportExpInput_@i" class="form-control" value="@DateTime.Today.AddYears(4).ToString("yyyy-MM-dd")" />
+                            </div>
+
+                            @if (isMinor)
+                            {
+                                <div class="col-12">
+                                    <label class="form-label small fw-bold">Người lớn đi cùng *</label>
+                                    <input type="text" name="passengers[@i].NguoiLonDiCung" class="form-control text-uppercase" required placeholder="Nhập họ tên người lớn đi kèm" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+                    <h6 class="fw-bold mb-3">Thông tin liên hệ nhận vé điện tử &amp; PNR</h6>
+                    <div class="row g-2">
+                        <div class="col-md-4"><input type="text" name="nguoiLienHe" class="form-control" value="@ViewBag.DefaultContactName" placeholder="Người liên hệ *" required /></div>
+                        <div class="col-md-4"><input type="text" name="sdtLienHe" class="form-control" value="@ViewBag.DefaultContactPhone" placeholder="Số điện thoại (+84) *" required /></div>
+                        <div class="col-md-4"><input type="email" name="emailLienHe" class="form-control" value="@ViewBag.DefaultContactEmail" placeholder="Email nhận vé *" required /></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CỘT PHẢI: THÔNG TIN ĐẶT CHỖ -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-lg rounded-4 overflow-hidden sticky-top" style="top: 85px;">
+                    <div class="bg-danger text-white p-3 fw-bold">THÔNG TIN ĐẶT CHỖ</div>
+                    <div class="card-body bg-white p-3 small">
+                        @foreach (var l in legs)
+                        {
+                            <div class="p-2 rounded bg-light mb-2 border">
+                                <div class="fw-bold text-primary">@l["LegLabel"]: @l["MaChuyenBay"] (Hạng @l["SelectedHangGhe"])</div>
+                                <div>@l["ThanhPhoDi"] (@l["MaSanBayDi"]) → @l["ThanhPhoDen"] (@l["MaSanBayDen"])</div>
+                                <div class="text-muted">@Convert.ToDateTime(l["NgayGioBay"]).ToString("dd/MM/yyyy HH:mm")</div>
+                            </div>
+                        }
+                        <hr />
+                        <div class="d-flex justify-content-between mb-1"><span>Giá vé:</span><strong>@estFare.ToString("N0") VNĐ</strong></div>
+                        <div class="d-flex justify-content-between mb-1"><span>Thuế, phí:</span><strong>@estTax.ToString("N0") VNĐ</strong></div>
+                        <div class="d-flex justify-content-between mb-1"><span>Dịch vụ:</span><strong>Chọn ở bước sau</strong></div>
+                    </div>
+                    <div class="bg-danger text-white p-3 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">Tổng tiền</span>
+                        <span class="fs-5 fw-bold">@((estFare + estTax).ToString("N0")) VNĐ</span>
+                    </div>
+                    <div class="p-3 bg-light d-grid gap-2">
+                        <button type="submit" class="btn btn-warning btn-lg fw-bold rounded-pill shadow-sm">Đi tiếp (Chọn ghế &amp; Dịch vụ) →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    function syncDocFields(idx) {
+        const type = document.getElementById('docType_' + idx).value;
+        const lbl = document.getElementById('docNumLbl_' + idx);
+        const inp = document.getElementById('docNumInput_' + idx);
+        const expCol = document.getElementById('passportExpCol_' + idx);
+
+        if (type === 'Hộ chiếu') {
+            lbl.textContent = 'Số Hộ chiếu *';
+            inp.placeholder = 'VD: C9123456 (6–12 ký tự)';
+            expCol.style.display = 'block';
+        } else if (type === 'Giấy khai sinh') {
+            lbl.textContent = 'Số Giấy khai sinh *';
+            inp.placeholder = 'Số/Mã giấy khai sinh';
+            expCol.style.display = 'none';
+        } else {
+            lbl.textContent = 'Số CCCD *';
+            inp.placeholder = '12 chữ số CCCD';
+            expCol.style.display = 'none';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        for (let i = 0; i < @paxTypes.Count; i++) syncDocFields(i);
+    });
+</script>

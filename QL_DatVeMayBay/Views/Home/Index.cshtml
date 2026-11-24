@@ -1,250 +1,659 @@
 ﻿@{
     ViewData["Title"] = "Đặt Vé Máy Bay Trực Tuyến";
-    var sanBays = ViewBag.SanBays as List<dynamic> ?? new();
+    var sanBays = ViewBag.SanBays as List<Dictionary<string, object>> ?? new();
+    var hangs = ViewBag.Hangs as List<Dictionary<string, object>> ?? new();
     var lichBay = ViewBag.LichChuyenBay as List<Dictionary<string, object>> ?? new();
+    var quaCanhDi = ViewBag.ChuyenQuaCanhDi as List<Dictionary<string, object>> ?? new();
     var lichBayVe = ViewBag.LichChuyenBayVe as List<Dictionary<string, object>> ?? new();
+    var quaCanhVe = ViewBag.ChuyenQuaCanhVe as List<Dictionary<string, object>> ?? new();
+    var destInfo = ViewBag.DestinationInfo as Dictionary<string, object>;
+    var origInfo = ViewBag.OriginInfo as Dictionary<string, object>;
     bool isRoundTrip = ViewBag.LoaiHanhTrinh == "KHU_HOI";
     bool daLoc = ViewBag.DaLoc == true;
+    int nguoiLon = ViewBag.NguoiLon ?? 1;
+    int treEm = ViewBag.TreEm ?? 0;
+    int emBe = ViewBag.EmBe ?? 0;
+    int soGheCanDat = ViewBag.SoGheCanDat ?? 1;
+    bool isIntlDest = destInfo != null && destInfo["QuocGia"]?.ToString() != "Việt Nam";
+    decimal estTaxOneLeg = isIntlDest ? 550000m : 220000m;
 }
 
-<div class="container py-4">
-    <!-- BỘ LỌC TÌM KIẾM CHUYẾN BAY -->
-    <div class="card shadow-lg border-0 rounded-4 overflow-hidden mb-5">
-        <div class="card-header bg-danger text-white py-3 d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-bold">✈ TÌM KIẾM CHUYẾN BAY</h5>
+<style>
+    .vj-hero { background: linear-gradient(125deg, #d91e2a 0%, #e11d48 55%, #f59e0b 100%); border-radius: 0 0 28px 28px; }
+    .vj-step-header { background: linear-gradient(90deg, #facc15, #fde047); border-radius: 16px; }
+    .vj-step-dot { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,.7); color: #64748b; font-size: .9rem; }
+    .vj-step-dot.active { background: #16a34a; color: #fff; box-shadow: 0 0 0 3px rgba(22,163,74,.25); }
+    .fare-cell { cursor: pointer; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 10px 6px; text-align: center; background: #fff; transition: all .15s; min-height: 76px; display:flex; flex-direction:column; justify-content:center; }
+    .fare-cell:hover:not(.soldout) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+    .fare-cell.tier-fir { background: #fef9c3; border-color: #eab308; }
+    .fare-cell.tier-bus { background: #ffe4e6; border-color: #f43f5e; }
+    .fare-cell.tier-eco { background: #f8fafc; border-color: #cbd5e1; }
+    .fare-cell.selected { border: 2.5px solid #16a34a !important; background: #dcfce7 !important; box-shadow: 0 0 0 2px rgba(22,163,74,.25); }
+    .fare-cell.soldout { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .cal-day { border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px 4px; text-align: center; cursor: pointer; background: #fff; font-size: .78rem; }
+    .cal-day:hover:not(.disabled) { border-color: #dc2626; }
+    .cal-day.cheapest { background: #ecfdf5; border-color: #10b981; }
+    .cal-day.selected { background: #fef08a; border: 2px solid #dc2626; }
+    .cal-day.disabled { background: #f8fafc; color: #cbd5e1; cursor: not-allowed; }
+</style>
+
+@if (!daLoc)
+{
+    <!-- TRANG CHỦ TÌM CHUYẾN KIỂU VIETJET -->
+    <div class="vj-hero text-white py-4 pb-5 mb-4">
+        <div class="container">
+            <div class="text-center mb-3">
+                <h2 class="fw-bold mb-1">Bay Khắp Việt Nam &amp; Khu Vực Cùng SkyVN Air</h2>
+                <p class="small opacity-90 mb-0">Tìm chuyến bay nhanh • Lịch giá rẻ theo tháng • Giữ chỗ 15 phút thời gian thực • Thanh toán VietQR</p>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="container @(daLoc ? "py-3" : "mt-n5")" style="@(!daLoc ? "margin-top:-3.5rem;" : "")">
+    @if (ViewBag.SearchWarning != null)
+    {
+        <div class="alert alert-warning rounded-4">@ViewBag.SearchWarning</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger rounded-4 fw-semibold">@TempData["Error"]</div>
+    }
+
+    <!-- BỘ TÌM KIẾM CHUYẾN BAY (CHỈ MỘT CHIỀU & KHỨ HỒI) -->
+    <div class="card shadow-lg border-0 rounded-4 overflow-hidden mb-4">
+        <div class="card-header bg-danger text-white py-2 px-4 d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div class="btn-group" role="group">
                 <input type="radio" class="btn-check" name="tripRadio" id="radOneWay" @(!isRoundTrip ? "checked" : "") onclick="toggleRoundTrip(false)">
-                <label class="btn btn-outline-light btn-sm fw-semibold" for="radOneWay">Một chiều</label>
+                <label class="btn btn-outline-light btn-sm fw-bold rounded-pill px-3 me-1" for="radOneWay">Một chiều</label>
 
                 <input type="radio" class="btn-check" name="tripRadio" id="radRoundTrip" @(isRoundTrip ? "checked" : "") onclick="toggleRoundTrip(true)">
-                <label class="btn btn-outline-light btn-sm fw-semibold" for="radRoundTrip">Khứ hồi</label>
+                <label class="btn btn-outline-light btn-sm fw-bold rounded-pill px-3" for="radRoundTrip">Khứ hồi</label>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 small">
+                <span class="opacity-75"><i class="bi bi-tag-fill me-1"></i>Mã khuyến mãi áp dụng khi đặt vé</span>
             </div>
         </div>
 
-        <form method="get" asp-action="Index" class="card-body p-4 bg-white">
+        <form method="get" asp-action="Index" class="card-body p-3 p-md-4 bg-white" id="searchForm">
             <input type="hidden" name="loaiHanhTrinh" id="loaiHanhTrinhInput" value="@ViewBag.LoaiHanhTrinh" />
-            <div class="row g-3 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label fw-bold small text-muted">ĐIỂM KHỞI HÀNH</label>
-                    <select name="maSanBayDi" class="form-select form-select-lg">
+            <input type="hidden" name="nguoiLon" id="nlInput" value="@nguoiLon" />
+            <input type="hidden" name="treEm" id="teInput" value="@treEm" />
+            <input type="hidden" name="emBe" id="ebInput" value="@emBe" />
+
+            <div class="row g-2 align-items-end">
+                <div class="col-lg-3 col-md-5">
+                    <label class="form-label small fw-bold text-muted mb-1">TỪ (ĐIỂM KHỞI HÀNH)</label>
+                    <select name="maSanBayDi" id="sbDiSelect" class="form-select" onchange="loadFareCalendar()">
                         @foreach (var sb in sanBays)
                         {
-                            <option value="@sb.MaSanBay" selected="@(sb.MaSanBay == ViewBag.MaSanBayDi)">@sb.ThanhPho (@sb.MaSanBay)</option>
+                            <option value="@sb["MaSanBay"]" selected="@(sb["MaSanBay"].ToString() == (string)ViewBag.MaSanBayDi)">
+                                @sb["ThanhPho"] (@sb["MaSanBay"])
+                            </option>
                         }
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label fw-bold small text-muted">ĐIỂM ĐẾN</label>
-                    <select name="maSanBayDen" class="form-select form-select-lg">
+
+                <div class="col-auto text-center">
+                    <button type="button" class="btn btn-outline-danger rounded-circle px-2 py-1" title="Đảo chiều sân bay" onclick="swapAirports()">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </button>
+                </div>
+
+                <div class="col-lg-3 col-md-5">
+                    <label class="form-label small fw-bold text-muted mb-1">ĐẾN (ĐIỂM ĐẾN)</label>
+                    <select name="maSanBayDen" id="sbDenSelect" class="form-select" onchange="loadFareCalendar()">
                         @foreach (var sb in sanBays)
                         {
-                            <option value="@sb.MaSanBay" selected="@(sb.MaSanBay == ViewBag.MaSanBayDen)">@sb.ThanhPho (@sb.MaSanBay)</option>
+                            <option value="@sb["MaSanBay"]" selected="@(sb["MaSanBay"].ToString() == (string)ViewBag.MaSanBayDen)">
+                                @sb["ThanhPho"] (@sb["MaSanBay"])
+                            </option>
                         }
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label fw-bold small text-muted">NGÀY ĐI</label>
-                    <input type="date" name="ngayDi" value="@ViewBag.NgayDi" class="form-control form-control-lg" />
+
+                <div class="col-lg-2 col-6">
+                    <label class="form-label small fw-bold text-muted mb-1">NGÀY ĐI</label>
+                    <input type="date" name="ngayDi" id="ngayDiInput" value="@ViewBag.NgayDi" min="@DateTime.Today.ToString("yyyy-MM-dd")" class="form-control" onchange="syncReturnMinDate()" />
                 </div>
-                <div class="col-md-2" id="ngayVeCol" style="display:@(isRoundTrip ? "block" : "none")">
-                    <label class="form-label fw-bold small text-muted">NGÀY VỀ</label>
-                    <input type="date" name="ngayVe" value="@ViewBag.NgayVe" class="form-control form-control-lg" />
+
+                <div class="col-lg-2 col-6" id="ngayVeCol" style="display:@(isRoundTrip ? "block" : "none")">
+                    <label class="form-label small fw-bold text-muted mb-1">NGÀY VỀ</label>
+                    <input type="date" name="ngayVe" id="ngayVeInput" value="@ViewBag.NgayVe" min="@ViewBag.NgayDi" class="form-control" />
+                </div>
+
+                <!-- POPOVER HÀNH KHÁCH GIỐNG VIETJET -->
+                <div class="col-lg-2 col-md-6 dropdown">
+                    <label class="form-label small fw-bold text-muted mb-1">HÀNH KHÁCH</label>
+                    <button class="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" id="paxDropdownBtn">
+                        <span class="text-truncate small fw-semibold" id="paxSummaryLabel">@nguoiLon NL, @treEm TE, @emBe EB</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-menu p-3 shadow-lg border-0 rounded-4" style="min-width: 280px;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div><div class="fw-bold small">Người lớn</div><small class="text-muted">12 tuổi trở lên</small></div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="stepPax('nl', -1)">-</button>
+                                <span class="btn btn-light fw-bold" id="nlDisp">@nguoiLon</span>
+                                <button type="button" class="btn btn-outline-danger" onclick="stepPax('nl', 1)">+</button>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div><div class="fw-bold small">Trẻ em</div><small class="text-muted">2 – 11 tuổi (90%)</small></div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="stepPax('te', -1)">-</button>
+                                <span class="btn btn-light fw-bold" id="teDisp">@treEm</span>
+                                <button type="button" class="btn btn-outline-danger" onclick="stepPax('te', 1)">+</button>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div><div class="fw-bold small">Em bé</div><small class="text-muted">Dưới 2 tuổi (≤ NL)</small></div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="stepPax('eb', -1)">-</button>
+                                <span class="btn btn-light fw-bold" id="ebDisp">@emBe</span>
+                                <button type="button" class="btn btn-outline-danger" onclick="stepPax('eb', 1)">+</button>
+                            </div>
+                        </div>
+                        <hr class="my-2" />
+                        <small class="text-muted d-block">Tổng tối đa 9 hành khách. Em bé ngồi cùng người lớn.</small>
+                    </div>
+                </div>
+
+                <div class="col-lg col-md-6 d-grid">
+                    <button type="submit" class="btn btn-warning fw-bold shadow-sm">
+                        Tìm chuyến bay →
+                    </button>
+                </div>
+            </div>
+
+            <!-- DÒNG LỌC PHỤ -->
+            <div class="row g-2 mt-2 pt-2 border-top align-items-center small">
+                <div class="col-md-3">
+                    <input type="text" name="maKM" value="@ViewBag.MaKM" class="form-control form-control-sm text-uppercase" placeholder="Mã khuyến mãi (VD: HE2026, TET2027)..." />
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label fw-bold small text-muted">LOẠI CHUYẾN</label>
-                    <select name="cheDoBay" class="form-select form-select-lg">
-                        <option value="ALL" selected="@(ViewBag.CheDoBay == "ALL")">Tất cả chuyến</option>
-                        <option value="THANG" selected="@(ViewBag.CheDoBay == "THANG")">Bay thẳng</option>
-                        <option value="QUA_CANH" selected="@(ViewBag.CheDoBay == "QUA_CANH")">Bay quá cảnh</option>
+                    <select name="cheDoBay" class="form-select form-select-sm">
+                        <option value="ALL" selected="@(ViewBag.CheDoBay == "ALL")">Thẳng &amp; Nối chuyến</option>
+                        <option value="THANG" selected="@(ViewBag.CheDoBay == "THANG")">Chỉ bay thẳng</option>
+                        <option value="QUA_CANH" selected="@(ViewBag.CheDoBay == "QUA_CANH")">Ưu tiên nối chuyến</option>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label fw-bold small text-muted">HÀNH KHÁCH</label>
-                    <select name="soHanhKhach" class="form-select form-select-lg">
-                        @for (int i = 1; i <= 4; i++)
+                    <select name="maHang" class="form-select form-select-sm">
+                        <option value="">Tất cả hãng</option>
+                        @foreach (var h in hangs)
                         {
-                            <option value="@i" selected="@(ViewBag.SoHanhKhach == i)">@i Hành khách</option>
+                            <option value="@h["MaHang"]" selected="@(h["MaHang"].ToString() == (string)ViewBag.MaHang)">@h["TenHang"]</option>
                         }
                     </select>
                 </div>
-                <div class="col-md-2 d-flex gap-2">
-                    <button type="submit" class="btn btn-warning btn-lg w-100 fw-bold shadow-sm">Tìm chuyến</button>
+                <div class="col-md-2">
+                    <select name="sortBy" class="form-select form-select-sm">
+                        <option value="GIO_ASC" selected="@(ViewBag.SortBy == "GIO_ASC")">Giờ khởi hành sớm</option>
+                        <option value="GIA_ASC" selected="@(ViewBag.SortBy == "GIA_ASC")">Giá vé rẻ nhất</option>
+                        <option value="THOI_GIAN_ASC" selected="@(ViewBag.SortBy == "THOI_GIAN_ASC")">Thời gian bay ngắn</option>
+                    </select>
+                </div>
+                <div class="col-md-3 text-md-end">
+                    <button type="button" class="btn btn-outline-success btn-sm rounded-pill fw-semibold" data-bs-toggle="collapse" data-bs-target="#fareCalendarDrawer" onclick="loadFareCalendar()">
+                        <i class="bi bi-calendar3 me-1"></i>Lịch giá vé rẻ theo tháng
+                    </button>
+                </div>
+            </div>
+
+            <div class="collapse mt-3 @(daLoc ? "show" : "")" id="fareCalendarDrawer">
+                <div class="border rounded-4 p-3 bg-light">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="shiftCalendarMonth(-1)">‹ Tháng trước</button>
+                        <strong id="calMonthTitle" class="text-danger">Đang tải lịch giá...</strong>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="shiftCalendarMonth(1)">Tháng sau ›</button>
+                    </div>
+                    <div class="row text-center fw-bold small text-muted mb-1">
+                        <div class="col">T2</div><div class="col">T3</div><div class="col">T4</div>
+                        <div class="col">T5</div><div class="col">T6</div><div class="col">T7</div><div class="col">CN</div>
+                    </div>
+                    <div class="cal-grid" id="fareCalGrid"></div>
                 </div>
             </div>
         </form>
     </div>
 
-    <!-- TIÊU ĐỀ & NÚT XÓA BỘ LỌC -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4 class="fw-bold mb-0">
-            @(daLoc
-                        ? (isRoundTrip ? $"Lịch chuyến bay Lượt đi ({lichBay.Count} chuyến)" : $"Lịch chuyến bay phù hợp ({lichBay.Count} chuyến)")
-                        : "Lịch chuyến bay đang mở bán")
-        </h4>
-        @if (daLoc)
-        {
-            <a asp-action="Index" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
-                ✕ Xóa bộ lọc (Xem tất cả)
-            </a>
-        }
-    </div>
-
-    <!-- DANH SÁCH THẺ CHUYẾN BAY (MỘT CHIỀU HOẶC LƯỢT ĐI KHỨ HỒI) -->
-    @if (lichBay.Count == 0)
+    @if (!daLoc)
     {
-        <div class="alert alert-warning rounded-4 p-4 text-center mb-4">
-            Không tìm thấy chuyến bay nào khớp với điều kiện lọc hiện tại. Bạn có thể đổi ngày bay hoặc bấm <strong>"Xóa bộ lọc"</strong> để xem toàn bộ lịch bay.
+        <!-- TRANG CHỦ: ẢNH THẬT ĐIỂM ĐẾN TỪNG THÀNH PHỐ -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="fw-bold mb-0"><i class="bi bi-compass-fill text-danger me-2"></i>Chuyến bay nổi bật theo Điểm đến thực tế</h4>
+            <small class="text-muted">Chọn bất kỳ chặng nào để mở Bảng giá theo hạng vé (ECO / BUS / FIR)</small>
         </div>
-    }
-    else
-    {
-        <div class="row g-4 mb-4">
+
+        <div class="row g-4 mb-5">
             @foreach (var item in lichBay)
             {
-                bool isTransit = Convert.ToInt32(item["LaChuyenQuaCanh"]) == 1;
-                <div class="col-md-4">
+                decimal giaEco = Convert.ToDecimal(item["GiaECO"]);
+                <div class="col-md-6 col-lg-4">
                     <div class="card h-100 shadow-sm border-0 rounded-4 overflow-hidden">
-                        <div class="position-relative" style="height: 165px;">
-                            <img src="@item["HinhAnhDiemDen"]" class="w-100 h-100 object-fit-cover" alt="@item["ThanhPhoDen"]" />
-                            <span class="position-absolute top-0 start-0 m-2 badge bg-dark bg-opacity-75">
-                                @item["MaChuyenBay"] • @item["TenHangHangKhong"]
-                            </span>
-                            <span class="position-absolute top-0 end-0 m-2 badge @(isTransit ? "bg-warning text-dark" : "bg-success")">
-                                @(isTransit ? "Chuyến quá cảnh" : "Bay thẳng")
-                            </span>
-                            <div class="position-absolute bottom-0 start-0 end-0 p-2 text-white" style="background: linear-gradient(transparent, rgba(0,0,0,0.8));">
-                                <strong>@item["ThanhPhoDi"] (@item["MaSanBayDi"]) → @item["ThanhPhoDen"] (@item["MaSanBayDen"])</strong>
+                        <div class="position-relative" style="height: 185px;">
+                            <img src="@item["HinhAnhDiemDen"]" onerror="this.src='/images/destinations/@(item["MaSanBayDen"]).svg'" class="w-100 h-100 object-fit-cover" alt="@item["ThanhPhoDen"]" />
+                            <span class="position-absolute top-0 start-0 m-2 badge bg-dark bg-opacity-75">@item["MaChuyenBay"] • @item["TenHangHangKhong"]</span>
+                            <span class="position-absolute top-0 end-0 m-2 badge bg-success">Còn @item["SoGheTrong"] ghế</span>
+                            <div class="position-absolute bottom-0 start-0 end-0 p-2 text-white" style="background: linear-gradient(transparent, rgba(0,0,0,0.85));">
+                                <div class="fw-bold">@item["ThanhPhoDi"] (@item["MaSanBayDi"]) → @item["ThanhPhoDen"] (@item["MaSanBayDen"])</div>
+                                <small class="opacity-75">@item["MoTaDiemDen"]</small>
                             </div>
                         </div>
-                        <div class="card-body d-flex flex-column justify-content-between">
+                        <div class="card-body d-flex justify-content-between align-items-center">
                             <div>
-                                <div class="small text-muted mb-1">
-                                    🕒 Khởi hành: <strong>@Convert.ToDateTime(item["NgayGioBay"]).ToString("dd/MM/yyyy HH:mm")</strong>
-                                </div>
-                                @if (isTransit)
-                                {
-                                    <div class="alert alert-warning py-1 px-2 small mb-2">
-                                        🔄 <strong>Điểm dừng:</strong> @item["ThongTinQuaCanh"]
-                                    </div>
-                                }
-                                <div class="small text-success fw-semibold">Còn @item["SoGheTrong"] ghế trống</div>
+                                <div class="small text-muted">@Convert.ToDateTime(item["NgayGioBay"]).ToString("dd/MM/yyyy HH:mm")</div>
+                                <div class="fs-5 fw-bold text-danger">Từ @giaEco.ToString("N0")đ</div>
                             </div>
-                            <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-3">
-                                <div>
-                                    <small class="text-muted d-block">Chi phí từ</small>
-                                    <span class="fs-5 fw-bold text-danger">@Convert.ToDecimal(item["GiaVeCoBan"]).ToString("N0") VNĐ</span>
-                                </div>
-                                @if (isRoundTrip)
-                                {
-                                    <div>
-                                        <input type="radio" class="btn-check" name="selectedDi" id="di_@item["MaChuyenBay"]" value="@item["MaChuyenBay"]" onchange="updateRoundTripBar()">
-                                        <label class="btn btn-outline-danger fw-bold rounded-pill px-3" for="di_@item["MaChuyenBay"]">Chọn lượt đi</label>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <a asp-controller="Booking" asp-action="SelectSeats"
-                                       asp-route-maChuyenBayDi="@item["MaChuyenBay"]"
-                                       asp-route-soHanhKhach="@ViewBag.SoHanhKhach"
-                                       class="btn btn-danger fw-bold rounded-pill px-3">Đặt vé</a>
-                                }
-                            </div>
+                            <a asp-action="Index"
+                               asp-route-maSanBayDi="@item["MaSanBayDi"]"
+                               asp-route-maSanBayDen="@item["MaSanBayDen"]"
+                               asp-route-ngayDi="@Convert.ToDateTime(item["NgayGioBay"]).ToString("yyyy-MM-dd")"
+                               asp-route-nguoiLon="@nguoiLon"
+                               asp-route-treEm="@treEm"
+                               asp-route-emBe="@emBe"
+                               class="btn btn-warning fw-bold rounded-pill px-3">Chọn vé →</a>
                         </div>
                     </div>
                 </div>
             }
         </div>
     }
-
-    <!-- NẾU ĐANG LỌC KHỨ HỒI -> HIỂN THỊ THÊM LỊCH CHUYẾN BAY LƯỢT VỀ BÊN DƯỚI -->
-    @if (daLoc && isRoundTrip)
+    else
     {
-        <h4 class="fw-bold mb-3 mt-4 text-primary">Lịch chuyến bay Lượt về (@lichBayVe.Count chuyến)</h4>
-        @if (lichBayVe.Count == 0)
+        <!-- MÀN HÌNH CHỌN CHUYẾN & HẠNG VÉ KIỂU VIETJET (/select-flight) -->
+        <div class="vj-step-header p-3 mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3 shadow-sm">
+            <div>
+                <div class="fw-bold small text-uppercase text-dark">
+                    @(isRoundTrip ? "CHUYẾN BAY KHỨ HỒI" : "CHUYẾN BAY MỘT CHIỀU") | @nguoiLon Người lớn @(treEm > 0 ? $"• {treEm} Trẻ em" : "") @(emBe > 0 ? $"• {emBe} Em bé" : "")
+                </div>
+                <div class="fw-bold text-danger fs-5">
+                    <i class="bi bi-geo-alt-fill me-1"></i>@(origInfo?["ThanhPho"] ?? ViewBag.MaSanBayDi) (@ViewBag.MaSanBayDi)
+                    <span class="mx-2 text-dark">→</span>
+                    @(destInfo?["ThanhPho"] ?? ViewBag.MaSanBayDen) (@ViewBag.MaSanBayDen)
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="vj-step-dot active" title="1. Chọn chuyến bay"><i class="bi bi-airplane-fill"></i></span>
+                <span class="vj-step-dot" title="2. Thông tin hành khách"><i class="bi bi-person-fill"></i></span>
+                <span class="vj-step-dot" title="3. Chọn ghế & Dịch vụ"><i class="bi bi-cart-fill"></i></span>
+                <span class="vj-step-dot" title="4. Thanh toán QR"><i class="bi bi-qr-code"></i></span>
+            </div>
+        </div>
+
+        @if (destInfo != null)
         {
-            <div class="alert alert-warning rounded-4 p-4 text-center">
-                Không có chuyến bay lượt về vào ngày @ViewBag.NgayVe. Hãy thử chọn ngày về khác.
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+                <div class="row g-0 align-items-center bg-dark text-white">
+                    <div class="col-md-3" style="height: 120px;">
+                        <img src="@destInfo["HinhAnhUrl"]" onerror="this.src='/images/destinations/@(ViewBag.MaSanBayDen).svg'" class="w-100 h-100 object-fit-cover" alt="@destInfo["ThanhPho"]" />
+                    </div>
+                    <div class="col-md-9 p-3">
+                        <span class="badge bg-warning text-dark mb-1">Điểm đến @destInfo["ThanhPho"] (@destInfo["MaSanBay"])</span>
+                        <p class="mb-0 small opacity-90">@destInfo["MoTaDiemDen"] — Bấm chọn 1 ô hạng vé <strong>Hạng Nhất / Thương Gia / Phổ Thông</strong> bên dưới để tiếp tục.</p>
+                    </div>
+                </div>
             </div>
         }
-        else
-        {
-            <div class="row g-4 mb-4">
-                @foreach (var item in lichBayVe)
+
+        <div class="row g-4">
+            <!-- CỘT TRÁI: MA TRẬN CHUYẾN BAY & HẠNG VÉ (FIR / BUS / ECO) -->
+            <div class="col-lg-8">
+                <h5 class="fw-bold mb-2 text-danger">1. Lượt đi (@ViewBag.MaSanBayDi → @ViewBag.MaSanBayDen • Ngày @Convert.ToDateTime((string)ViewBag.NgayDi).ToString("dd/MM/yyyy"))</h5>
+
+                <div class="row g-2 text-center fw-bold small mb-2 px-2 d-none d-md-flex">
+                    <div class="col-md-4 text-start text-muted">CHUYẾN BAY &amp; GIỜ</div>
+                    <div class="col-md-2"><span class="badge w-100 py-2 bg-warning text-dark">HẠNG NHẤT (FIR)</span></div>
+                    <div class="col-md-3"><span class="badge w-100 py-2 bg-danger">THƯƠNG GIA (BUS)</span></div>
+                    <div class="col-md-3"><span class="badge w-100 py-2 bg-success">PHỔ THÔNG (ECO)</span></div>
+                </div>
+
+                @if (lichBay.Count == 0 && quaCanhDi.Count == 0)
                 {
-                    bool isTransit = Convert.ToInt32(item["LaChuyenQuaCanh"]) == 1;
-                    <div class="col-md-4">
-                        <div class="card h-100 shadow-sm border-0 rounded-4 overflow-hidden">
-                            <div class="position-relative" style="height: 165px;">
-                                <img src="@item["HinhAnhDiemDen"]" class="w-100 h-100 object-fit-cover" alt="@item["ThanhPhoDen"]" />
-                                <span class="position-absolute top-0 start-0 m-2 badge bg-dark bg-opacity-75">
-                                    @item["MaChuyenBay"] • @item["TenHangHangKhong"]
-                                </span>
-                                <span class="position-absolute top-0 end-0 m-2 badge @(isTransit ? "bg-warning text-dark" : "bg-success")">
-                                    @(isTransit ? "Chuyến quá cảnh" : "Bay thẳng")
-                                </span>
-                                <div class="position-absolute bottom-0 start-0 end-0 p-2 text-white" style="background: linear-gradient(transparent, rgba(0,0,0,0.8));">
-                                    <strong>@item["ThanhPhoDi"] (@item["MaSanBayDi"]) → @item["ThanhPhoDen"] (@item["MaSanBayDen"])</strong>
+                    <div class="alert alert-warning rounded-4">Không tìm thấy chuyến bay lượt đi vào ngày này. Hãy chọn ngày khác trên Lịch giá rẻ ở trên.</div>
+                }
+
+                @foreach (var item in lichBay)
+                {
+                    string maCB = item["MaChuyenBay"].ToString()!;
+                    decimal pEco = Convert.ToDecimal(item["GiaECO"]);
+                    decimal pBus = Convert.ToDecimal(item["GiaBUS"]);
+                    decimal pFir = Convert.ToDecimal(item["GiaFIR"]);
+                    int gEco = Convert.ToInt32(item["GheECO"]);
+                    int gBus = Convert.ToInt32(item["GheBUS"]);
+
+                    <div class="card border-0 shadow-sm rounded-4 mb-3 overflow-hidden">
+                        <div class="row g-2 p-2 align-items-center">
+                            <div class="col-md-4">
+                                <div class="p-2 rounded-3 h-100" style="background: #fffbeb; border-left: 4px solid #f59e0b;">
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <span class="badge bg-dark">@maCB</span>
+                                        <small class="fw-semibold text-muted">@item["TenHangHangKhong"]</small>
+                                    </div>
+                                    <div class="fs-5 fw-bold text-dark">
+                                        @Convert.ToDateTime(item["NgayGioBay"]).ToString("HH:mm") <span class="text-muted fs-6">→</span> @Convert.ToDateTime(item["NgayGioDenDK"]).ToString("HH:mm")
+                                    </div>
+                                    <div class="small text-muted">@item["ThoiGianBay"] phút • @(Convert.ToInt32(item["LaChuyenQuaCanh"]) == 1 ? item["ThongTinQuaCanh"] : "Bay thẳng")</div>
+                                    <div class="small text-success fw-semibold mt-1">Tổng trống: @item["SoGheTrong"] ghế</div>
                                 </div>
                             </div>
-                            <div class="card-body d-flex flex-column justify-content-between">
-                                <div>
-                                    <div class="small text-muted mb-1">
-                                        🕒 Khởi hành: <strong>@Convert.ToDateTime(item["NgayGioBay"]).ToString("dd/MM/yyyy HH:mm")</strong>
-                                    </div>
-                                    @if (isTransit)
+
+                            <div class="col-4 col-md-2">
+                                <div class="fare-cell tier-fir @(gBus < soGheCanDat ? "soldout" : "")"
+                                     onclick="@(gBus >= soGheCanDat ? $"pickFare('DI','{maCB}','','FIR',{pFir},{estTaxOneLeg},'{item["MaSanBayDi"]}','{item["MaSanBayDen"]}','{Convert.ToDateTime(item["NgayGioBay"]):dd/MM HH:mm}',this)" : "")">
+                                    @if (gBus >= soGheCanDat)
                                     {
-                                        <div class="alert alert-warning py-1 px-2 small mb-2">
-                                            🔄 <strong>Điểm dừng:</strong> @item["ThongTinQuaCanh"]
-                                        </div>
+                                        <div class="fw-bold text-dark">@((pFir / 1000m).ToString("N0"))k</div>
+                                        <small class="text-muted" style="font-size:.68rem;">VIP/Phòng chờ</small>
                                     }
-                                    <div class="small text-success fw-semibold">Còn @item["SoGheTrong"] ghế trống</div>
+                                    else
+                                    {
+                                        <small>Hết chỗ</small>
+                                    }
                                 </div>
-                                <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-3">
-                                    <div>
-                                        <small class="text-muted d-block">Chi phí từ</small>
-                                        <span class="fs-5 fw-bold text-primary">@Convert.ToDecimal(item["GiaVeCoBan"]).ToString("N0") VNĐ</span>
-                                    </div>
-                                    <div>
-                                        <input type="radio" class="btn-check" name="selectedVe" id="ve_@item["MaChuyenBay"]" value="@item["MaChuyenBay"]" onchange="updateRoundTripBar()">
-                                        <label class="btn btn-outline-primary fw-bold rounded-pill px-3" for="ve_@item["MaChuyenBay"]">Chọn lượt về</label>
-                                    </div>
+                            </div>
+
+                            <div class="col-4 col-md-3">
+                                <div class="fare-cell tier-bus @(gBus < soGheCanDat ? "soldout" : "")"
+                                     onclick="@(gBus >= soGheCanDat ? $"pickFare('DI','{maCB}','','BUS',{pBus},{estTaxOneLeg},'{item["MaSanBayDi"]}','{item["MaSanBayDen"]}','{Convert.ToDateTime(item["NgayGioBay"]):dd/MM HH:mm}',this)" : "")">
+                                    @if (gBus >= soGheCanDat)
+                                    {
+                                        <div class="fw-bold text-danger">@pBus.ToString("N0")đ</div>
+                                        <small class="text-muted" style="font-size:.7rem;">Còn @gBus ghế BUS • 30kg</small>
+                                    }
+                                    else
+                                    {
+                                        <small>Hết chỗ BUS</small>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="col-4 col-md-3">
+                                <div class="fare-cell tier-eco @(gEco < soGheCanDat ? "soldout" : "")"
+                                     onclick="@(gEco >= soGheCanDat ? $"pickFare('DI','{maCB}','','ECO',{pEco},{estTaxOneLeg},'{item["MaSanBayDi"]}','{item["MaSanBayDen"]}','{Convert.ToDateTime(item["NgayGioBay"]):dd/MM HH:mm}',this)" : "")">
+                                    @if (gEco >= soGheCanDat)
+                                    {
+                                        <div class="fw-bold text-success">@pEco.ToString("N0")đ</div>
+                                        <small class="text-muted" style="font-size:.7rem;">Còn @gEco ghế ECO</small>
+                                    }
+                                    else
+                                    {
+                                        <small>Hết chỗ ECO</small>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="px-3 pb-2 small text-muted bg-light border-top d-none perk-drawer" id="perk_DI_@maCB"></div>
+                    </div>
+                }
+
+                <!-- NỐI CHUYẾN LƯỢT ĐI -->
+                @foreach (var tc in quaCanhDi)
+                {
+                    string c1 = tc["Chuyen1_Ma"].ToString()!;
+                    string c2 = tc["Chuyen2_Ma"].ToString()!;
+                    decimal baseSum = Convert.ToDecimal(tc["TongGiaVeCoBan"]);
+                    decimal taxSum = Convert.ToBoolean(tc["LaTuyenQuocTe"]) ? 700000m : 300000m;
+                    <div class="card border-warning shadow-sm rounded-4 mb-3 p-3 bg-white">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-6">
+                                <span class="badge bg-warning text-dark">Nối chuyến tại @tc["Hub_ThanhPho"] (chờ @tc["ThoiGianNoiChuyenPhut"]p)</span>
+                                <div class="fw-bold mt-1">@c1 + @c2 • @Convert.ToDateTime(tc["Chuyen1_GioDi"]).ToString("HH:mm") → @Convert.ToDateTime(tc["Chuyen2_GioDen"]).ToString("HH:mm")</div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="fare-cell tier-bus" onclick="pickFare('DI','@c1','@c2','BUS',@(baseSum * 2m),@taxSum,'@tc["MaSanBayDi"]','@tc["MaSanBayDen"]','@Convert.ToDateTime(tc["Chuyen1_GioDi"]):dd/MM HH:mm',this)">
+                                    <strong class="text-danger">@((baseSum * 2m).ToString("N0"))đ</strong>
+                                    <small>Thương gia</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="fare-cell tier-eco" onclick="pickFare('DI','@c1','@c2','ECO',@baseSum,@taxSum,'@tc["MaSanBayDi"]','@tc["MaSanBayDen"]','@Convert.ToDateTime(tc["Chuyen1_GioDi"]):dd/MM HH:mm',this)">
+                                    <strong class="text-success">@baseSum.ToString("N0")đ</strong>
+                                    <small>Phổ thông</small>
                                 </div>
                             </div>
                         </div>
                     </div>
                 }
-            </div>
-        }
 
-        <!-- Thanh xác nhận nổi khi chọn đủ cả Lượt đi và Lượt về -->
-        <div id="roundTripFooter" class="card shadow-lg border-danger p-3 sticky-bottom mb-3 d-none">
-            <div class="d-flex justify-content-between align-items-center">
-                <div class="fw-bold" id="roundTripSummary">Đã chọn chuyến đi và chuyến về</div>
-                <a id="proceedRoundTripBtn" href="#" class="btn btn-danger btn-lg fw-bold rounded-pill px-4">
-                    Tiếp tục chọn ghế khứ hồi →
-                </a>
+                <!-- LƯỢT VỀ NẾU KHỨ HỒI -->
+                @if (isRoundTrip)
+                {
+                    <h5 class="fw-bold mt-4 mb-2 text-primary">2. Lượt về (@ViewBag.MaSanBayDen → @ViewBag.MaSanBayDi • Ngày @Convert.ToDateTime((string)ViewBag.NgayVe).ToString("dd/MM/yyyy"))</h5>
+                    @foreach (var item in lichBayVe)
+                    {
+                        string maCB = item["MaChuyenBay"].ToString()!;
+                        decimal pEco = Convert.ToDecimal(item["GiaECO"]);
+                        decimal pBus = Convert.ToDecimal(item["GiaBUS"]);
+                        int gEco = Convert.ToInt32(item["GheECO"]);
+                        int gBus = Convert.ToInt32(item["GheBUS"]);
+
+                        <div class="card border-0 shadow-sm rounded-4 mb-2 p-2 bg-white">
+                            <div class="row g-2 align-items-center">
+                                <div class="col-md-6">
+                                    <span class="badge bg-primary">@maCB • @item["TenHangHangKhong"]</span>
+                                    <div class="fw-bold">@Convert.ToDateTime(item["NgayGioBay"]).ToString("HH:mm") → @Convert.ToDateTime(item["NgayGioDenDK"]).ToString("HH:mm") (@item["ThoiGianBay"]p)</div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="fare-cell tier-bus @(gBus < soGheCanDat ? "soldout" : "")"
+                                         onclick="@(gBus >= soGheCanDat ? $"pickFare('VE','{maCB}','','BUS',{pBus},{estTaxOneLeg},'{item["MaSanBayDi"]}','{item["MaSanBayDen"]}','{Convert.ToDateTime(item["NgayGioBay"]):dd/MM HH:mm}',this)" : "")">
+                                        <strong class="text-danger">@pBus.ToString("N0")đ</strong>
+                                        <small>BUS (@gBus ghế)</small>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="fare-cell tier-eco @(gEco < soGheCanDat ? "soldout" : "")"
+                                         onclick="@(gEco >= soGheCanDat ? $"pickFare('VE','{maCB}','','ECO',{pEco},{estTaxOneLeg},'{item["MaSanBayDi"]}','{item["MaSanBayDen"]}','{Convert.ToDateTime(item["NgayGioBay"]):dd/MM HH:mm}',this)" : "")">
+                                        <strong class="text-success">@pEco.ToString("N0")đ</strong>
+                                        <small>ECO (@gEco ghế)</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <!-- CỘT PHẢI: KHUNG THÔNG TIN ĐẶT CHỖ KIỂU VIETJET -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-lg rounded-4 overflow-hidden sticky-top" style="top: 85px;">
+                    <div class="bg-danger text-white p-3 fw-bold">
+                        <i class="bi bi-ticket-detailed-fill me-2"></i>THÔNG TIN ĐẶT CHỖ
+                    </div>
+                    <div class="card-body bg-white p-3 small">
+                        <div class="p-2 rounded bg-info-subtle mb-2" id="boxOutSummary">
+                            <div class="fw-bold">Chuyến đi</div>
+                            <div class="text-muted">Vui lòng chọn hạng vé từ danh sách bên trái...</div>
+                        </div>
+                        @if (isRoundTrip)
+                        {
+                            <div class="p-2 rounded bg-primary-subtle mb-2" id="boxRetSummary">
+                                <div class="fw-bold">Chuyến về</div>
+                                <div class="text-muted">Vui lòng chọn hạng vé lượt về...</div>
+                            </div>
+                        }
+                        <hr />
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Giá vé (@nguoiLon NL, @treEm TE, @emBe EB):</span>
+                            <strong id="sideFare">0 VNĐ</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Thuế, phí sân bay:</span>
+                            <strong id="sideTax">0 VNĐ</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Dịch vụ (Ghế, Hành lý, Suất ăn):</span>
+                            <strong>0 VNĐ</strong>
+                        </div>
+                    </div>
+                    <div class="bg-danger text-white p-3 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">Tổng tiền</span>
+                        <span class="fs-5 fw-bold" id="sideTotal">0 VNĐ</span>
+                    </div>
+                    <div class="p-3 bg-light d-grid">
+                        <button type="button" class="btn btn-warning btn-lg fw-bold rounded-pill shadow-sm" id="btnNextPassengers" disabled onclick="goToPassengers()">
+                            Đi tiếp (Nhập hành khách) →
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     }
 </div>
 
 <script>
-    function toggleRoundTrip(isRound) {
-        document.getElementById('loaiHanhTrinhInput').value = isRound ? 'KHU_HOI' : 'MOT_CHIEU';
-        document.getElementById('ngayVeCol').style.display = isRound ? 'block' : 'none';
-    }
+    const isRoundTrip = @(isRoundTrip ? "true" : "false");
+    let nl = @nguoiLon, te = @treEm, eb = @emBe;
+    let calYear = new Date("@ViewBag.NgayDi").getFullYear();
+    let calMonth = new Date("@ViewBag.NgayDi").getMonth() + 1;
 
-    function updateRoundTripBar() {
-        const di = document.querySelector('input[name="selectedDi"]:checked')?.value;
-        const ve = document.querySelector('input[name="selectedVe"]:checked')?.value;
-        const footer = document.getElementById('roundTripFooter');
-        const btn = document.getElementById('proceedRoundTripBtn');
+    const selOut = { cb: '', cb2: '', tier: '', fare: 0, tax: 0, text: '' };
+    const selRet = { cb: '', cb2: '', tier: '', fare: 0, tax: 0, text: '' };
 
-        if (di && ve && footer && btn) {
-            footer.classList.remove('d-none');
-            document.getElementById('roundTripSummary').innerHTML =
-                `Hành trình khứ hồi: <span class="text-danger">${di}</span> (Đi) + <span class="text-primary">${ve}</span> (Về)`;
-            btn.href = `/Booking/SelectSeats?maChuyenBayDi=${di}&maChuyenBayVe=${ve}&soHanhKhach=@ViewBag.SoHanhKhach`;
+    function stepPax(kind, delta) {
+        if (kind === 'nl') nl = Math.max(1, Math.min(9, nl + delta));
+        if (kind === 'te') te = Math.max(0, Math.min(8, te + delta));
+        if (kind === 'eb') eb = Math.max(0, Math.min(nl, eb + delta));
+        if (nl + te + eb > 9) {
+            if (kind === 'te') te = 9 - nl - eb;
+            if (kind === 'eb') eb = Math.min(nl, 9 - nl - te);
+            if (kind === 'nl') { const rem = 9 - nl; te = Math.min(te, rem); eb = Math.min(eb, rem - te); }
         }
+        if (eb > nl) eb = nl;
+        document.getElementById('nlInput').value = nl;
+        document.getElementById('teInput').value = te;
+        document.getElementById('ebInput').value = eb;
+        document.getElementById('nlDisp').textContent = nl;
+        document.getElementById('teDisp').textContent = te;
+        document.getElementById('ebDisp').textContent = eb;
+        document.getElementById('paxSummaryLabel').textContent = `${nl} NL, ${te} TE, ${eb} EB`;
     }
+
+    function toggleRoundTrip(r) {
+        document.getElementById('loaiHanhTrinhInput').value = r ? 'KHU_HOI' : 'MOT_CHIEU';
+        document.getElementById('ngayVeCol').style.display = r ? 'block' : 'none';
+    }
+
+    function swapAirports() {
+        const a = document.getElementById('sbDiSelect');
+        const b = document.getElementById('sbDenSelect');
+        [a.value, b.value] = [b.value, a.value];
+        loadFareCalendar();
+    }
+
+    function syncReturnMinDate() {
+        const d = document.getElementById('ngayDiInput').value;
+        const v = document.getElementById('ngayVeInput');
+        if (v) { v.min = d; if (v.value < d) v.value = d; }
+    }
+
+    function pickFare(dir, cb, cb2, tier, fareAdult, taxOne, di, den, gio, el) {
+        const target = dir === 'DI' ? selOut : selRet;
+        target.cb = cb; target.cb2 = cb2; target.tier = tier; target.fare = fareAdult; target.tax = taxOne;
+        target.text = `${di} → ${den} | ${cb}${cb2 ? '+' + cb2 : ''} (${gio}) • Hạng ${tier}`;
+
+        // Đánh dấu UI
+        document.querySelectorAll('.fare-cell.selected').forEach(x => {
+            if ((dir === 'DI' && !x.closest('[data-ret]')) || dir === 'VE') {
+                // Keep opposite direction if round trip: simple per-section reset
+            }
+        });
+        const cardParent = el.closest('.col-lg-8');
+        if (dir === 'DI') {
+            document.querySelectorAll('[onclick*="pickFare(\'DI\'"]').forEach(c => c.classList.remove('selected'));
+        } else {
+            document.querySelectorAll('[onclick*="pickFare(\'VE\'"]').forEach(c => c.classList.remove('selected'));
+        }
+        el.classList.add('selected');
+
+        const perkEl = document.getElementById('perk_DI_' + cb);
+        if (perkEl && dir === 'DI') {
+            const perkMap = {
+                'FIR': '✓ Hạng Nhất: Hành lý 40kg + Phòng chờ sang trọng + Suất ăn thượng hạng + Đổi miễn phí trước 72h',
+                'BUS': '✓ Thương gia: Hành lý ký gửi 30kg + Phòng chờ Lotus + Ưu tiên Check-in & An ninh',
+                'ECO': '✓ Phổ thông: Hành lý xách tay 7-12kg • Hỗ trợ mua thêm ký gửi & chọn ghế ở Bước 3'
+            };
+            perkEl.textContent = perkMap[tier] || '';
+            perkEl.classList.remove('d-none');
+        }
+
+        updateSidebar();
+    }
+
+    function updateSidebar() {
+        const calcLeg = (t) => {
+            if (!t.cb) return { fare: 0, tax: 0 };
+            const baseEco = t.fare / (t.tier === 'FIR' ? 3.5 : t.tier === 'BUS' ? 2.0 : 1.0);
+            const infantOne = Math.max(100000, Math.round(baseEco * 0.1 / 1000) * 1000);
+            const childTaxOne = Math.round(t.tax * 0.5 / 1000) * 1000;
+            const fareSum = t.fare * nl + (Math.round(t.fare * 0.9 / 1000) * 1000) * te + infantOne * eb;
+            const taxSum = t.tax * nl + childTaxOne * te;
+            return { fare: fareSum, tax: taxSum };
+        };
+
+        const o = calcLeg(selOut), r = isRoundTrip ? calcLeg(selRet) : { fare: 0, tax: 0 };
+        if (selOut.cb) document.getElementById('boxOutSummary').innerHTML = `<div class="fw-bold text-success">✓ Chuyến đi đã chọn</div><div>${selOut.text}</div>`;
+        if (isRoundTrip && selRet.cb) document.getElementById('boxRetSummary').innerHTML = `<div class="fw-bold text-primary">✓ Chuyến về đã chọn</div><div>${selRet.text}</div>`;
+
+        const totalFare = o.fare + r.fare;
+        const totalTax = o.tax + r.tax;
+        document.getElementById('sideFare').textContent = totalFare.toLocaleString('vi-VN') + ' VNĐ';
+        document.getElementById('sideTax').textContent = totalTax.toLocaleString('vi-VN') + ' VNĐ';
+        document.getElementById('sideTotal').textContent = (totalFare + totalTax).toLocaleString('vi-VN') + ' VNĐ';
+
+        const ready = !!selOut.cb && (!isRoundTrip || !!selRet.cb);
+        document.getElementById('btnNextPassengers').disabled = !ready;
+    }
+
+    function goToPassengers() {
+        const km = encodeURIComponent('@ViewBag.MaKM');
+        let url = `/Booking/Passengers?maChuyenBayDi=${encodeURIComponent(selOut.cb)}&hangGheDi=${selOut.tier}&nguoiLon=${nl}&treEm=${te}&emBe=${eb}&maKM=${km}`;
+        if (selOut.cb2) url += `&maChuyenBayDi2=${encodeURIComponent(selOut.cb2)}`;
+        if (isRoundTrip && selRet.cb) {
+            url += `&maChuyenBayVe=${encodeURIComponent(selRet.cb)}&hangGheVe=${selRet.tier}`;
+            if (selRet.cb2) url += `&maChuyenBayVe2=${encodeURIComponent(selRet.cb2)}`;
+        }
+        window.location.href = url;
+    }
+
+    function shiftCalendarMonth(delta) {
+        calMonth += delta;
+        if (calMonth < 1) { calMonth = 12; calYear--; }
+        if (calMonth > 12) { calMonth = 1; calYear++; }
+        loadFareCalendar();
+    }
+
+    async function loadFareCalendar() {
+        const di = document.getElementById('sbDiSelect').value;
+        const den = document.getElementById('sbDenSelect').value;
+        const selectedDi = document.getElementById('ngayDiInput').value;
+        try {
+            const resp = await fetch(`/Home/GiaTheoThang?di=${di}&den=${den}&thang=${calMonth}&nam=${calYear}&soNguoi=${nl + te}`);
+            const data = await resp.json();
+            document.getElementById('calMonthTitle').textContent = `${data.tenThang} (${data.di} → ${data.den})`;
+            const grid = document.getElementById('fareCalGrid');
+            grid.innerHTML = '';
+            if (!data.days || data.days.length === 0) return;
+            const firstDow = (new Date(data.days[0].ngay).getDay() + 6) % 7;
+            for (let b = 0; b < firstDow; b++) grid.innerHTML += '<div></div>';
+            data.days.forEach(d => {
+                const dis = !d.giaThapNhat || d.soChuyenBay <= 0;
+                const cls = ['cal-day', dis ? 'disabled' : '', d.laNgayReNhat ? 'cheapest' : '', d.ngay === selectedDi ? 'selected' : ''].join(' ');
+                const p = d.giaRutGon ? `<div class="fw-bold ${d.laNgayReNhat ? 'text-success' : 'text-danger'}">${d.giaRutGon}</div>` : `<div class="small">—</div>`;
+                grid.innerHTML += `<div class="${cls}" ${dis ? '' : `onclick="pickCalendarDate('${d.ngay}')"`}><div>${d.ngayTrongThang}</div>${p}</div>`;
+            });
+        } catch (e) { }
+    }
+
+    function pickCalendarDate(iso) {
+        document.getElementById('ngayDiInput').value = iso;
+        syncReturnMinDate();
+        document.getElementById('searchForm').submit();
+    }
+
+    @if (daLoc) { <text>document.addEventListener('DOMContentLoaded', loadFareCalendar);</text> }
 </script>

@@ -9,6 +9,8 @@
     var dtTuyen = ViewBag.TopTuyenBay as DataTable;
     var dtCB = ViewBag.DanhSachChuyenBay as DataTable;
     var dtDon = ViewBag.DanhSachDonHang as DataTable;
+    var dtGD = ViewBag.DanhSachGiaoDichCK as DataTable;
+    int pendingCount = ViewBag.PendingPaymentsCount ?? 0;
     var dtHuyDoi = ViewBag.DanhSachHuyDoi as DataTable;
     var dtKM = ViewBag.DanhSachKhuyenMai as DataTable;
     var dtNV = ViewBag.DanhSachNhanVien as DataTable;
@@ -46,11 +48,16 @@
             <span class="badge bg-warning text-dark mb-1">PHÂN QUYỀN RBAC: @roleName.ToUpper()</span>
             <h3 class="fw-bold mb-0">Trung tâm Điều hành & Thống kê Đại lý</h3>
         </div>
-        <form method="post" asp-action="RunCleanupCursor">
-            <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill">
-                <i class="bi bi-arrow-repeat me-1"></i>Quét hủy đơn quá hạn (SQL Cursor)
-            </button>
-        </form>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-action="RevenueReport" class="btn btn-danger btn-sm rounded-pill fw-bold px-3">
+                <i class="bi bi-printer-fill me-1"></i>Báo cáo Doanh thu (In / PDF)
+            </a>
+            <form method="post" asp-action="RunCleanupCursor">
+                <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill">
+                    <i class="bi bi-arrow-repeat me-1"></i>Quét hủy đơn quá hạn (SQL Cursor)
+                </button>
+            </form>
+        </div>
     </div>
 
     @if (TempData["Success"] != null)
@@ -93,7 +100,15 @@
     <!-- TAB ĐIỀU HƯỚNG NGHIỆP VỤ -->
     <ul class="nav nav-pills mb-4 gap-2" role="tablist">
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab-report">1. Biểu đồ & Báo cáo (UC09)</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-orders">2. Đơn đặt chỗ & Thu ngân (UC03/04)</button></li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-orders">
+                2. Duyệt Chuyển khoản &amp; Đơn vé
+                @if (pendingCount > 0)
+                {
+                    <span class="badge bg-danger ms-1">@pendingCount chờ duyệt</span>
+                }
+            </button>
+        </li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-refunds">3. Hoàn / Đổi vé (UC05/06)</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-flights">4. Lịch bay (UC12)</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-promos">5. Khuyến mãi (UC13)</button></li>
@@ -178,10 +193,100 @@
             </div>
         </div>
 
-        <!-- TAB 2: ĐƠN ĐẶT CHỖ -->
+        <!-- TAB 2: DUYỆT CHUYỂN KHOẢN VIETQR & ĐƠN ĐẶT CHỖ -->
         <div class="tab-pane fade" id="tab-orders">
+            <div class="card card-modern p-4 mb-4 border-start border-4 border-primary">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-bank2 text-primary me-2"></i>Đối soát &amp; Duyệt ảnh Chuyển khoản Ngân hàng</h5>
+                    <span class="badge @(pendingCount > 0 ? "bg-danger" : "bg-success")">@pendingCount giao dịch chờ duyệt</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle small">
+                        <thead class="table-light">
+                            <tr><th>Mã PNR / GD</th><th>Khách hàng</th><th>Số tiền &amp; Nội dung CK</th><th>Ảnh xác nhận</th><th>Trạng thái</th><th>Duyệt thanh toán</th></tr>
+                        </thead>
+                        <tbody>
+                            @if (dtGD != null && dtGD.Rows.Count > 0)
+                            {
+                                foreach (DataRow g in dtGD.Rows)
+                                {
+                                    string stGD = g["TrangThai"].ToString()!;
+                                    string? imgUrl = g["AnhChuyenKhoanUrl"] == DBNull.Value ? null : g["AnhChuyenKhoanUrl"].ToString();
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold text-danger">@g["MaDatCho"]</div>
+                                            <code style="font-size:.72rem;">@g["MaGiaoDich"]</code>
+                                            <div><span class="badge bg-light text-dark border">@g["LoaiGiaoDich"]</span></div>
+                                        </td>
+                                        <td>
+                                            <div class="fw-semibold">@g["TenKH"]</div>
+                                            <div class="text-muted">@g["SDT"]</div>
+                                        </td>
+                                        <td>
+                                            <div class="fw-bold text-success">@Convert.ToDecimal(g["SoTien"]).ToString("N0")đ</div>
+                                            <div class="text-muted">ND: <code>@g["NoiDungCK"]</code></div>
+                                            @if (g["NgayGuiMinhChung"] != DBNull.Value)
+                                            {
+                                                <div class="text-muted" style="font-size:.72rem;">Gửi lúc: @Convert.ToDateTime(g["NgayGuiMinhChung"]).ToString("HH:mm dd/MM")</div>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrEmpty(imgUrl))
+                                            {
+                                                <a href="@imgUrl" target="_blank" title="Bấm xem ảnh kích thước đầy đủ">
+                                                    <img src="@imgUrl" alt="Bill CK" class="rounded border" style="width:68px;height:68px;object-fit:cover;" />
+                                                </a>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted fst-italic">Chưa gửi ảnh</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="badge @(stGD == "Chờ duyệt" ? "bg-warning text-dark" : stGD == "Thành công" ? "bg-success" : "bg-secondary")">@stGD</span>
+                                            @if (g["LyDoTuChoi"] != DBNull.Value && !string.IsNullOrWhiteSpace(g["LyDoTuChoi"].ToString()))
+                                            {
+                                                <div class="text-danger mt-1" style="font-size:.72rem;">@g["LyDoTuChoi"]</div>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if ((stGD == "Chờ duyệt" || stGD == "Chờ thanh toán") && (roleId == 1 || roleId == 2))
+                                            {
+                                                <div class="d-flex flex-column gap-1">
+                                                    <form method="post" asp-action="ApprovePayment">
+                                                        <input type="hidden" name="maGiaoDich" value="@g["MaGiaoDich"]" />
+                                                        <input type="hidden" name="chapNhan" value="true" />
+                                                        <button type="submit" class="btn btn-success btn-sm w-100 fw-bold">
+                                                            <i class="bi bi-check-lg me-1"></i>Duyệt &amp; Xuất vé
+                                                        </button>
+                                                    </form>
+                                                    <form method="post" asp-action="ApprovePayment" class="input-group input-group-sm">
+                                                        <input type="hidden" name="maGiaoDich" value="@g["MaGiaoDich"]" />
+                                                        <input type="hidden" name="chapNhan" value="false" />
+                                                        <input type="text" name="lyDoTuChoi" class="form-control" placeholder="Lý do từ chối..." />
+                                                        <button type="submit" class="btn btn-outline-danger">Từ chối</button>
+                                                    </form>
+                                                </div>
+                                            }
+                                            else if (stGD == "Thành công")
+                                            {
+                                                <span class="small text-success fw-semibold">Đã duyệt (@g["TenNVDuyet"])</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr><td colspan="6" class="text-center text-muted py-3">Chưa có giao dịch chuyển khoản nào chờ duyệt.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="card card-modern p-4">
-                <h5 class="fw-bold mb-3">Danh sách Hồ sơ Đặt chỗ & Hóa đơn</h5>
+                <h5 class="fw-bold mb-3">Danh sách Hồ sơ Đặt chỗ &amp; Hóa đơn</h5>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle small">
                         <thead class="table-light">
@@ -200,9 +305,10 @@
                                         <td>@(r["MaHD"] == DBNull.Value ? "-" : $"{r["MaHD"]} ({r["PhuongThucThanhToan"]})")</td>
                                         <td>
                                             <a asp-controller="Booking" asp-action="Lookup" asp-route-maDatCho="@r["MaDatCho"]" class="btn btn-sm btn-outline-primary">Xử lý</a>
+                                            <a asp-controller="Booking" asp-action="ItineraryForm" asp-route-maDatCho="@r["MaDatCho"]" class="btn btn-sm btn-outline-secondary">Hành trình</a>
                                             @if (r["MaHD"] != DBNull.Value)
                                             {
-                                                <a asp-controller="Booking" asp-action="Invoice" asp-route-maDatCho="@r["MaDatCho"]" class="btn btn-sm btn-outline-dark">In HĐ</a>
+                                                <a asp-controller="Booking" asp-action="Invoice" asp-route-maDatCho="@r["MaDatCho"]" class="btn btn-sm btn-outline-dark">HĐ VAT</a>
                                             }
                                         </td>
                                     </tr>
@@ -221,7 +327,7 @@
                 <div class="table-responsive">
                     <table class="table table-hover align-middle small">
                         <thead class="table-light">
-                            <tr><th>Mã YC</th><th>Mã Vé</th><th>Loại</th><th>Lý do</th><th>Tỷ lệ hoàn</th><th>Tiền hoàn</th><th>Phí phạt/Đổi</th><th>Trạng thái</th></tr>
+                            <tr><th>Mã YC</th><th>Mã Vé</th><th>Loại</th><th>Lý do</th><th>Tỷ lệ hoàn</th><th>Tiền hoàn</th><th>Phí phạt/Đổi</th><th>Trạng thái</th><th>Chi tiết</th></tr>
                         </thead>
                         <tbody>
                             @if (dtHuyDoi != null)
@@ -237,6 +343,16 @@
                                         <td class="text-success fw-bold">@Convert.ToDecimal(r["SoTienHoan"]).ToString("N0")đ</td>
                                         <td class="text-danger">@Convert.ToDecimal(r["PhiPhat"]).ToString("N0")đ</td>
                                         <td><span class="badge bg-success">@r["TrangThai"]</span></td>
+                                        <td>
+                                            @if (r["LoaiYeuCau"].ToString() == "Hủy vé")
+                                            {
+                                                <a asp-controller="Booking" asp-action="CancellationForm" asp-route-maYeuCau="@r["MaYeuCau"]" class="btn btn-xs btn-outline-danger py-0 px-2 small">Xem phiếu</a>
+                                            }
+                                            else
+                                            {
+                                                <a asp-controller="Booking" asp-action="ExchangeForm" asp-route-maYeuCau="@r["MaYeuCau"]" class="btn btn-xs btn-outline-primary py-0 px-2 small">Xem phiếu</a>
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             }
@@ -251,7 +367,8 @@
             @if (roleId == 1)
             {
                 <div class="card card-modern p-4 mb-4">
-                    <h6 class="fw-bold text-primary mb-3"><i class="bi bi-plus-circle-fill me-1"></i>Mở lịch chuyến bay mới</h6>
+                    <h6 class="fw-bold text-primary mb-2"><i class="bi bi-plus-circle-fill me-1"></i>Mở lịch chuyến bay mới</h6>
+                    <p class="small text-muted mb-3">Quy chuẩn giá thực tế: Giá cơ bản nội địa <strong>≥ 390.000đ</strong> (quốc tế <strong>≥ 1.200.000đ</strong>) • Thuế phí: <strong>220.000đ</strong>/chặng nội địa (Trẻ em 50%, Em bé 0đ) • Hệ số: ECO 1.0x, BUS 2.0x, FIR 3.5x • Đổi vé: 350.000đ ECO / 0đ BUS &amp; FIR.</p>
                     <form method="post" asp-action="AddFlight" class="row g-2 align-items-end">
                         <div class="col-md-2"><label class="form-label small">Mã chuyến</label><input type="text" name="maChuyenBay" class="form-control form-control-sm" placeholder="VN999" required /></div>
                         <div class="col-md-2"><label class="form-label small">Tuyến bay</label><select name="maTuyenBay" class="form-select form-select-sm">@if (tuyens != null) { foreach (DataRow t in tuyens.Rows) {
@@ -288,7 +405,21 @@
                                         <td>@Convert.ToDateTime(r["NgayGioBay"]).ToString("HH:mm dd/MM/yyyy")</td>
                                         <td class="fw-bold text-danger">@Convert.ToDecimal(r["GiaVeCoBan"]).ToString("N0")đ</td>
                                         <td>@r["SoGheTrong"] / @r["TongSoGhe"]</td>
-                                        <td><span class="badge bg-success">@r["TrangThaiChuyenBay"]</span></td>
+                                        <td>
+                                            <span class="badge bg-success">@r["TrangThaiChuyenBay"]</span>
+                                            @if (roleId == 1)
+                                            {
+                                                <form method="post" asp-action="UpdateFlightStatus" class="d-inline-flex gap-1 mt-1">
+                                                    <input type="hidden" name="maChuyenBay" value="@r["MaChuyenBay"]" />
+                                                    <select name="trangThai" class="form-select form-select-sm py-0" style="width:auto;font-size:.75rem;">
+                                                        <option value="Đang mở bán">Mở bán</option>
+                                                        <option value="Hoãn chuyến">Hoãn chuyến</option>
+                                                        <option value="Đã hủy">Hủy chuyến</option>
+                                                    </select>
+                                                    <button type="submit" class="btn btn-outline-primary btn-sm py-0 px-2">Lưu</button>
+                                                </form>
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             }
@@ -367,7 +498,7 @@
                                     <td class="fw-bold">@r["TenKH"]</td>
                                     <td><span class="badge bg-primary">@r["MaChuyenBay"]</span></td>
                                     <td class="text-warning">@(new string('★', stars))</td>
-                                    <td>@r["BinhLuan"]</td>
+                                    <td>@r["NoiDung"]</td>
                                     <td>@Convert.ToDateTime(r["NgayDanhGia"]).ToString("dd/MM/yyyy HH:mm")</td>
                                 </tr>
                             }
@@ -401,7 +532,7 @@
                                         <td><span class="badge bg-primary">@r["TenRole"]</span></td>
                                         <td><span class="badge @(active ? "bg-success" : "bg-danger")">@(active ? "Hoạt động" : "Đã khóa")</span></td>
                                         <td>
-                                            @if (r["MaNV"].ToString() != "NV01")
+                                            @if (r["MaNV"].ToString() != "NV001")
                                             {
                                                 <form method="post" asp-action="ToggleStaff">
                                                     <input type="hidden" name="maNV" value="@r["MaNV"]" />
